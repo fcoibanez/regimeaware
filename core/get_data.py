@@ -33,14 +33,14 @@ rt = pd.pivot_table(rt_long, index='date', columns='permno', values='ret')
 rt.columns = rt.columns.astype(int)
 rt.index = pd.DatetimeIndex(rt.index)
 rt.sort_index(inplace=True)
-rt.to_pickle('rt_sp.pkl')
+rt.to_pickle(f'{fldr}/data/rt_sp.pkl')
 
 # Inclusion flags
 consti = meta_sp.sort_values('namedt').groupby(['permno', 'start']).last()
 consti = consti.reset_index()
 consti = consti.sort_values(['permno', 'start'])
 
-idx_y = pd.date_range(start=meta_sp['start'].min(), end=datetime(2021, 12, 31), freq='A')
+idx_y = pd.date_range(start=meta_sp['start'].min(), end=datetime(2022, 12, 31), freq='A')
 is_tradable = pd.DataFrame(False, index=idx_y, columns=meta_sp['permno'].unique())
 
 for row in range(consti.shape[0]):
@@ -48,7 +48,7 @@ for row in range(consti.shape[0]):
  from_dt, till_dt = consti.loc[row, ['start', 'ending']]
  is_tradable.loc[from_dt:till_dt, key] = True
 
-is_tradable_m = is_tradable.resample('M').ffill()
+is_tradable_m = is_tradable.resample('BM').ffill()
 is_tradable_m = is_tradable_m.shift(1).dropna()
 
 is_tradable_m.to_pickle(f'{fldr}/data/is_tradable_sp.pkl')
