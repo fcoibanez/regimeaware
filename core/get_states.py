@@ -102,5 +102,5 @@ if __name__ == "__main__":
     # Cache the results
     emission_prob.to_pickle(f"{cfg.data_fldr}/regimes/emission_prob.pkl")
     sigma.to_pickle(f"{cfg.data_fldr}/regimes/sigma.pkl")
-    mu.to_pickle(f"{cfg.data_fldr}/regimes/my.pkl")
+    mu.to_pickle(f"{cfg.data_fldr}/regimes/mu.pkl")
     transmat.to_pickle(f"{cfg.data_fldr}/regimes/transmat_prob.pkl")
