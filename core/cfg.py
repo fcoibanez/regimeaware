@@ -15,9 +15,9 @@ n_states = 4  # Number of hidden states to use
 estimation_freq = "BM"
 rebalance_freq = "BM"
 data_freq = "BM"
+obs_thresh = 120  # Ten years of observations before estimating the RWLS
 
 # Hidden Markov Model parameters
-# hm_cov = 'full'
 hm_cov = "diag"
 hm_min_covar = 1E-3
 hm_iter = 100
