@@ -16,6 +16,7 @@ estimation_freq = "BM"
 rebalance_freq = "BM"
 data_freq = "BM"
 obs_thresh = 120  # Ten years of observations before estimating the RWLS
+forecast_horizon = 3  # In months
 
 # Hidden Markov Model parameters
 hm_cov = "diag"
