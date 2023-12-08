@@ -9,7 +9,6 @@ if __name__ == "__main__":
     from sklearn import preprocessing
 
     data = pd.read_pickle(f'{cfg.data_fldr}/ff.pkl').sort_index()
-    data = data.add(1).resample(cfg.data_freq).prod().sub(1)
     data = data[cfg.factor_set]
 
     rebalance_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
@@ -29,7 +28,6 @@ if __name__ == "__main__":
     mdl.fit(trn_std)
     mu_t = pd.DataFrame(mdl.means_, columns=trn_raw.columns)
     mu_t = mu_t.add(scaler.mean_).mul(scaler.scale_)
-    print(mu_t.mul(12))
     mu_0 = mdl.means_
     sigma_0 = mdl.covars_
     transmat_0 = mdl.transmat_
@@ -54,12 +52,16 @@ if __name__ == "__main__":
             random_state=cfg.hm_rs,
             tol=cfg.hm_tol,
             params=cfg.hm_params_to_estimate,
-            init_params=""
+            init_params=cfg.hm_init_params_to_estimate,
         )
 
         mdl.startprob_ = start_p_0
         mdl.means_ = mu_0
-        mdl.covars_ = np.array([np.diag(x) for x in sigma_0])
+
+        if cfg.hm_cov == "diag":
+            mdl.covars_ = np.array([np.diag(x) for x in sigma_0])
+        else:
+            mdl.covars_ = sigma_0
         mdl.transmat_ = transmat_0
 
         mdl.fit(X=trn_std)
