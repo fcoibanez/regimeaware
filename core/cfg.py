@@ -7,7 +7,7 @@ data_fldr = f"{fldr}/data"
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start
 bt_start_dt = datetime(2002, 12, 31)  # Backtest start
-bt_end_dt = datetime(2022, 12, 30)  # Backtest end
+bt_end_dt = datetime(2022, 12, 31)  # Backtest end
 
 factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
 
@@ -25,5 +25,5 @@ hm_iter = 100
 hm_algo = "viterbi"
 hm_rs = 1234
 hm_tol = 1E-2
-hm_params_to_estimate = "stmc"
+hm_params_to_estimate = "tmc"
 hm_init_params_to_estimate = ""
