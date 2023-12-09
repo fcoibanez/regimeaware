@@ -41,7 +41,7 @@ if __name__ == "__main__":
     convergence_flags = pd.Series(index=rebalance_dts)
 
     for as_of_dt in tqdm(rebalance_dts):
-        trn_raw = data.loc[cfg.trn_start_dt:as_of_dt]
+        trn_raw = data.loc[cfg.trn_start_dt:as_of_dt, cfg.factor_set]
         scaler = preprocessing.StandardScaler(copy=True).fit(trn_raw)
         trn_std = scaler.transform(trn_raw)
         mdl = GaussianHMM(
@@ -73,10 +73,11 @@ if __name__ == "__main__":
         mu_t.index = pd.MultiIndex.from_tuples([(as_of_dt, x) for x in mu_t.index], names=['as_of', 'state'])
         collect_mu += [mu_t]
 
-        sigma_t = pd.concat([pd.DataFrame(x, columns=trn_raw.columns).mul(scaler.var_) for x in mdl.covars_])
+        D = np.diag(scaler.scale_)
+        rescaled_covars = [D @ r @ D for r in mdl.covars_]
+        sigma_t = pd.concat([pd.DataFrame(x, columns=trn_raw.columns) for x in rescaled_covars])
         idx = pd.MultiIndex.from_tuples([(as_of_dt, y, x) for y in range(cfg.n_states) for x in trn_raw.columns], names=['as_of', 'state', 'factor'])
         sigma_t.index = idx
-        sigma_t = sigma_t.reindex(idx, level='state')
         collect_sigma += [sigma_t]
 
         # Emission probabilities
