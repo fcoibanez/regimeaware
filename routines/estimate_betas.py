@@ -3,7 +3,6 @@
 if __name__ == "__main__":
     import pandas as pd
     from core import cfg
-    import numpy as np
     from core.methodologies import RegimeWeightedLS
     from tqdm import tqdm
 

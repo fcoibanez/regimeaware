@@ -1,7 +1,6 @@
 if __name__ == "__main__":
     import wrds
     import pandas as pd
-    from datetime import datetime
     import os
     import numpy as np
 
