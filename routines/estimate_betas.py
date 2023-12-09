@@ -2,8 +2,8 @@
 
 if __name__ == "__main__":
     import pandas as pd
-    from core import cfg
-    from core.methodologies import RegimeWeightedLS
+    from regimeaware.routines import cfg
+    from regimeaware.core.methodologies import RegimeWeightedLS
     from tqdm import tqdm
 
     emission_prob = pd.read_pickle(f"{cfg.data_fldr}/regimes/emission_prob.pkl")

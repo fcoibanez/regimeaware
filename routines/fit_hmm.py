@@ -1,7 +1,7 @@
 """Fits the HMM on real time and caches the results locally."""
 
 if __name__ == "__main__":
-    from core import cfg
+    from regimeaware.routines import cfg
     import pandas as pd
     from hmmlearn.hmm import GaussianHMM
     from tqdm import tqdm

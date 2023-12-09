@@ -1,13 +1,12 @@
 if __name__ == "__main__":
     import wrds
     import pandas as pd
-    import os
     import numpy as np
+    from regimeaware.routines import cfg
 
     # ---------------------------------------------------------------------
     # Preamble
     conn = wrds.Connection(wrds_username='fcoibanez')
-    fldr = os.path.abspath(os.path.join(os.getcwd(), '..'))
 
     # ---------------------------------------------------------------------
     # F&F Factors
@@ -19,7 +18,7 @@ if __name__ == "__main__":
     ff = conn.raw_sql(query)
     ff['date'] = pd.DatetimeIndex(ff['date']) + pd.offsets.MonthEnd(0)
     ff = ff.set_index('date')
-    ff.to_pickle(f'{fldr}/data/ff.pkl')
+    ff.to_pickle(f'{cfg.data_fldr}/data/ff.pkl')
 
     # ---------------------------------------------------------------------
     # CRSP (borrowed from https://www.tidy-finance.org/python/wrds-crsp-and-compustat.html)
@@ -110,4 +109,4 @@ if __name__ == "__main__":
     crsp_monthly['dollar_vol'] = crsp_monthly['prc'].mul(crsp_monthly['vol'])
     crsp_monthly.drop(['rf', 'month'], axis=1, inplace=True)
     crsp_monthly['mktcap'] = crsp_monthly['shrout'].mul(crsp_monthly['altprc']).abs().replace(0, np.nan)
-    crsp_monthly.to_pickle(f'{fldr}/data/crsp.pkl')
+    crsp_monthly.to_pickle(f'{cfg.data_fldr}/data/crsp.pkl')
