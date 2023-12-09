@@ -10,9 +10,8 @@ if __name__ == "__main__":
     emission_prob = pd.read_pickle(f"{cfg.data_fldr}/regimes/emission_prob.pkl")
     transition_matrix = pd.read_pickle(f"{cfg.data_fldr}/regimes/transmat.pkl")
     ff = pd.read_pickle(f'{cfg.data_fldr}/ff.pkl').sort_index()[cfg.factor_set]
-    ff = ff.add(1).resample(cfg.data_freq).prod().sub(1).replace(0, np.nan)  # Temp!
-    rt = pd.read_pickle(f'{cfg.data_fldr}/rt_sp.pkl')
-    rt = rt.add(1).resample(cfg.data_freq).prod().sub(1).replace(0, np.nan)  # Temp! This has to be monthly and excess returns
+    crsp = pd.read_pickle(f'{cfg.data_fldr}/crsp.pkl')
+    rt = pd.pivot_table(crsp[['excess_ret']], index='date', columns='permno', values='excess_ret')
 
     rebalance_dates = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.rebalance_freq)
     collect_betas = []
@@ -23,7 +22,7 @@ if __name__ == "__main__":
         length_flags = n_obs > cfg.obs_thresh
         long_ids = length_flags[length_flags].index
         active_ids = rt.xs(dt).dropna().index
-        sample_ids = list(set(active_ids).intersection(active_ids))
+        sample_ids = list(set(active_ids).intersection(long_ids))
 
         res_var = pd.Series(index=pd.MultiIndex.from_tuples([(dt, x) for x in sample_ids], names=['date', 'id']))
 
