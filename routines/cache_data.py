@@ -109,4 +109,4 @@ if __name__ == "__main__":
     crsp_monthly['dollar_vol'] = crsp_monthly['prc'].mul(crsp_monthly['vol'])
     crsp_monthly.drop(['rf', 'month'], axis=1, inplace=True)
     crsp_monthly['mktcap'] = crsp_monthly['shrout'].mul(crsp_monthly['altprc']).abs().replace(0, np.nan)
-    crsp_monthly.to_pickle(f'{cfg.data_fldr}/data/crsp.pkl')
+    crsp_monthly.to_pickle(f'{cfg.data_fldr}/crsp.pkl')
