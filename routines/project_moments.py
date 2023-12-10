@@ -37,7 +37,7 @@ if __name__ == "__main__":
         mu_t = mu_t.reindex(sec_ids)
         sigma_t = sigma_t.loc[sec_ids, sec_ids]
 
-        idx = pd.MultiIndex.from_tuples([(dt, x) for x in sec_ids])
+        idx = pd.MultiIndex.from_tuples([(dt, x) for x in sec_ids], names=['date', 'permno'])
         mu_t.index = idx
         sigma_t.index = idx
         collect_mu += [mu_t]
