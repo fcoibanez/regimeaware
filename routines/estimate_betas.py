@@ -17,8 +17,8 @@ if __name__ == "__main__":
     collect_var = []
 
     for dt in tqdm(rebalance_dates):
-        n_obs = rt.loc[cfg.trn_start_dt:dt].count()
-        length_flags = n_obs > cfg.obs_thresh
+        n_obs = rt.loc[:dt].iloc[-cfg.obs_thresh:].count()
+        length_flags = n_obs == cfg.obs_thresh
         long_ids = length_flags[length_flags].index
         active_ids = rt.xs(dt).dropna().index
         sample_ids = list(set(active_ids).intersection(long_ids))
