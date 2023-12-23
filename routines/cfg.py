@@ -18,6 +18,8 @@ data_freq = "M"
 obs_thresh = 120  # Ten years of observations before estimating the RWLS
 forecast_horizon = 1  # In months
 
+ols_windows = [36, 60, 120, 999]  # Lookback windows used in the OLS estimation (months)
+
 # Hidden Markov Model parameters
 hm_cov = "full"
 hm_min_covar = 1E-3
