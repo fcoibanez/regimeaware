@@ -19,6 +19,8 @@ obs_thresh = 120  # Ten years of observations before estimating the RWLS
 forecast_horizon = 1  # In months
 
 ols_windows = [36, 60, 120, 999]  # Lookback windows used in the OLS estimation (months)
+gamma_iter = [.5, 1]
+tev_budget_iter = [.05, .1]
 
 # Hidden Markov Model parameters
 hm_cov = "full"
