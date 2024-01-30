@@ -30,7 +30,7 @@ if __name__ == "__main__":
         sec_ids = list(theta.index)
 
         mu_factor = utils.expected_means(conditional_means=mu.xs(dt), probs=g_t)
-        sigma_factor = utils.expected_covar(conditional_covars=sigma.xs(dt), probs=g_t)
+        sigma_factor = utils.expected_covar(conditional_covars=sigma.xs(dt), probs=g_t, conditional_means=mu.xs(dt))
 
         mu_t = utils.project_means(betas=theta, factor_means=mu_factor)
         sigma_t = utils.project_covariances(betas=theta, factor_covariance=sigma_factor, residual_variances=var.xs(dt))

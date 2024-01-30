@@ -64,17 +64,26 @@ def project_means(betas, factor_means):
     return res
 
 
-def expected_covar(conditional_covars, probs):
+def expected_covar(conditional_covars, probs, conditional_means):
     """Combines probabilities and regime covariance matrices.
 
     :param conditional_covars:
+    :param conditional_means:
     :param probs:
     :return:
     """
     w = probs.copy()
     w.index.name = "state"
-    res = conditional_covars.mul(w, axis=0).groupby('factor').sum().reindex(conditional_covars.columns)
-    return res
+    V_st = np.zeros((conditional_covars.shape[1], conditional_covars.shape[1]))
+    for s in range(len(probs)):
+        V = conditional_covars.xs(s).values
+        mu_s = conditional_means[conditional_covars.columns].xs(s).values.reshape(-1, 1)
+        g = probs[s]
+        V_st += g * (V + mu_s @ mu_s.T)
+    mu_st = expected_means(conditional_means, probs).values.reshape(-1, 1)
+    V_st -= mu_st @ mu_st.T
+    V_st = pd.DataFrame(V_st, index=conditional_covars.columns, columns=conditional_means.columns)
+    return V_st
 
 
 def expected_means(conditional_means, probs):
