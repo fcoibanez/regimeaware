@@ -8,10 +8,15 @@ if __name__ == "__main__":
     import numpy as np
     from sklearn import preprocessing
 
-    data = pd.read_pickle(f'{cfg.data_fldr}/ff.pkl').sort_index()
+    data = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl').sort_index()
     data = data[cfg.factor_set]
 
-    rebalance_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
+    dts = pd.date_range(cfg.trn_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
+    estimation_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
+
+    if cfg.estimation_freq != 'M':
+        st, ed = dts[[0, -1]]
+        data = data.loc[st:ed].add(1).groupby(pd.Grouper(freq=cfg.estimation_freq)).prod().sub(1)
 
     # Warm-up run to get initial parameters
     trn_raw = data.loc[cfg.trn_start_dt:cfg.bt_end_dt]
@@ -38,9 +43,9 @@ if __name__ == "__main__":
     collect_mu = []
     collect_sigma = []
     collect_transmat = []
-    convergence_flags = pd.Series(index=rebalance_dts)
+    convergence_flags = pd.Series(index=estimation_dts, dtype=bool)
 
-    for as_of_dt in tqdm(rebalance_dts):
+    for as_of_dt in tqdm(estimation_dts):
         trn_raw = data.loc[cfg.trn_start_dt:as_of_dt, cfg.factor_set]
         scaler = preprocessing.StandardScaler(copy=True).fit(trn_raw)
         trn_std = scaler.transform(trn_raw)
