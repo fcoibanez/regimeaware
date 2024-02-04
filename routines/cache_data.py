@@ -3,6 +3,7 @@ if __name__ == "__main__":
     import pandas as pd
     import numpy as np
     from regimeaware.routines import cfg
+    from tqdm import tqdm
 
     # ---------------------------------------------------------------------
     # Preamble
@@ -18,7 +19,18 @@ if __name__ == "__main__":
     ff = conn.raw_sql(query)
     ff['date'] = pd.DatetimeIndex(ff['date']) + pd.offsets.MonthEnd(0)
     ff = ff.set_index('date')
-    ff.to_pickle(f'{cfg.data_fldr}/data/ff.pkl')
+    ff.to_pickle(f'{cfg.data_fldr}/ff.pkl')
+
+    # Daily version
+    query = \
+     f'''
+     SELECT date, mktrf, smb, hml, rmw, cma, umd, rf
+     FROM ff.fivefactors_daily
+     '''
+    ff_daily = conn.raw_sql(query)
+    ff_daily['date'] = pd.DatetimeIndex(ff_daily['date'])
+    ff_daily = ff_daily.set_index('date')
+    ff_daily.to_pickle(f'{cfg.data_fldr}/ff_daily.pkl')
 
     # ---------------------------------------------------------------------
     # CRSP (borrowed from https://www.tidy-finance.org/python/wrds-crsp-and-compustat.html)
@@ -110,3 +122,33 @@ if __name__ == "__main__":
     crsp_monthly.drop(['rf', 'month'], axis=1, inplace=True)
     crsp_monthly['mktcap'] = crsp_monthly['shrout'].mul(crsp_monthly['altprc']).abs().replace(0, np.nan)
     crsp_monthly.to_pickle(f'{cfg.data_fldr}/crsp.pkl')
+
+    # ---------------------------------------------------------------------
+    # CRSP (daily returns)
+    query_template = \
+        """
+        SELECT dsf.permno, dsf.date, dsf.ret
+        FROM crsp.dsf AS dsf
+        LEFT JOIN crsp.msenames AS msenames ON dsf.permno = msenames.permno
+        WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' AND msenames.shrcd IN (10, 11)
+        """
+
+    collect_responses = []
+    for yr in tqdm(range(1960, 2023), desc='Pulling daily responses'):
+        query = query_template.format(yr=yr)
+        res = conn.raw_sql(query)
+        rt = res.set_index(['date', 'permno']).squeeze()
+        rt = rt.sort_index()
+        rt = rt[~rt.index.duplicated(keep='last')]
+        collect_responses += [rt]
+
+    crsp_daily = pd.concat(collect_responses, axis=0)
+    crsp_daily = crsp_daily.reset_index()
+    crsp_daily['date'] = pd.DatetimeIndex(crsp_daily['date'])
+    crsp_daily = crsp_daily.set_index(['date', 'permno']).squeeze()
+
+    ff_daily = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl')
+    rf = ff_daily['rf'].resample('D').ffill()
+    er = crsp_daily.sub(rf)
+    crsp_daily = crsp_daily.to_frame('rt').join(er.rename('er'))
+    crsp_daily.to_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
