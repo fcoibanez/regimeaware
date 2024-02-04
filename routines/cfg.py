@@ -12,14 +12,14 @@ bt_end_dt = datetime(2022, 12, 31)  # Backtest end
 factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
 
 n_states = 4  # Number of hidden states to use
-estimation_freq = "M"
-rebalance_freq = "M"
-data_freq = "M"
-obs_thresh = 120  # Ten years of observations before estimating the RWLS
-forecast_horizon = 1  # In months
+estimation_freq = "W-Wed"
+rebalance_freq = "ME"
+data_freq = "W-Wed"
+obs_thresh = 260  # Five years of observations before estimating the RWLS
+forecast_horizon = 4  # In months
 
 ols_windows = [36, 60, 120, 999]  # Lookback windows used in the OLS estimation (months)
-gamma_iter = [1, 2, 5]
+gamma_iter = range(10, 100, 10)
 tev_budget_iter = [.06, .075]
 
 # Hidden Markov Model parameters

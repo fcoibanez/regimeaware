@@ -8,15 +8,16 @@ if __name__ == "__main__":
     import numpy as np
     from sklearn import preprocessing
 
-    data = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl').sort_index()
-    data = data[cfg.factor_set]
-
-    dts = pd.date_range(cfg.trn_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
-    estimation_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
-
-    if cfg.estimation_freq != 'M':
+    if cfg.estimation_freq != 'ME':
+        data = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl')[cfg.factor_set].sort_index()
+        dts = pd.date_range(cfg.trn_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
+        estimation_dts = pd.date_range(cfg.bt_start_dt - pd.DateOffset(months=1), cfg.bt_end_dt, freq=cfg.estimation_freq)
         st, ed = dts[[0, -1]]
         data = data.loc[st:ed].add(1).groupby(pd.Grouper(freq=cfg.estimation_freq)).prod().sub(1)
+    else:
+        data = pd.read_pickle(f'{cfg.data_fldr}/ff.pkl')[cfg.factor_set].sort_index()
+        dts = pd.date_range(cfg.trn_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
+        estimation_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
 
     # Warm-up run to get initial parameters
     trn_raw = data.loc[cfg.trn_start_dt:cfg.bt_end_dt]
