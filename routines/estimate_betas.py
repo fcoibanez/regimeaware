@@ -33,7 +33,7 @@ if __name__ == "__main__":
     collect_betas = []
     collect_var = []
 
-    for dt in tqdm(rebalance_dates):
+    for dt in rebalance_dates:
         as_of_dt = rt.index.asof(dt)
         n_obs = rt.loc[:dt].iloc[-cfg.obs_thresh:].count()
         length_flags = n_obs == cfg.obs_thresh

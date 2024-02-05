@@ -146,9 +146,4 @@ if __name__ == "__main__":
     crsp_daily = crsp_daily.reset_index()
     crsp_daily['date'] = pd.DatetimeIndex(crsp_daily['date'])
     crsp_daily = crsp_daily.set_index(['date', 'permno']).squeeze()
-
-    ff_daily = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl')
-    rf = ff_daily['rf'].resample('D').ffill()
-    er = crsp_daily.sub(rf)
-    crsp_daily = crsp_daily.to_frame('rt').join(er.rename('er'))
     crsp_daily.to_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
