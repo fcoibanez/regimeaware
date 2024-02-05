@@ -20,17 +20,18 @@ if __name__ == "__main__":
     collect_sigma_f = []
 
     for dt in tqdm(rebalance_dates):
+        as_of_dt = emission_prob.index.get_level_values('as_of').unique().asof(dt)
         g_t = utils.looking_fwd_prob(
-            transmat=transmat.xs(dt),
-            current_emission_prob=emission_prob.xs(dt).xs(dt),
+            transmat=transmat.xs(as_of_dt),
+            current_emission_prob=emission_prob.xs(as_of_dt).xs(as_of_dt),
             horizon=cfg.forecast_horizon
         )
 
         theta = utils.unpack_betas(betas.xs(dt))
         sec_ids = list(theta.index)
 
-        mu_factor = utils.expected_means(conditional_means=mu.xs(dt), probs=g_t)
-        sigma_factor = utils.expected_covar(conditional_covars=sigma.xs(dt), probs=g_t, conditional_means=mu.xs(dt))
+        mu_factor = utils.expected_means(conditional_means=mu.xs(as_of_dt), probs=g_t)
+        sigma_factor = utils.expected_covar(conditional_covars=sigma.xs(as_of_dt), probs=g_t, conditional_means=mu.xs(as_of_dt))
 
         mu_t = utils.project_means(betas=theta, factor_means=mu_factor)
         sigma_t = utils.project_covariances(betas=theta, factor_covariance=sigma_factor, residual_variances=var.xs(dt))
@@ -60,5 +61,5 @@ if __name__ == "__main__":
 
     res_sigma = pd.concat(collect_sigma, axis=0)
     res_mu = pd.concat(collect_mu, axis=0)
-    res_sigma.to_pickle(f'{cfg.data_fldr}/moments/stock_covars.pkl')
-    res_mu.to_pickle(f'{cfg.data_fldr}/moments/stock_means.pkl')
+    pd.to_pickle(collect_sigma, f'{cfg.data_fldr}/moments/stock_covars.pkl')
+    pd.to_pickle(collect_mu, f'{cfg.data_fldr}/moments/stock_means.pkl')
