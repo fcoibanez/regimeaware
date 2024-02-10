@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # CRSP (daily returns)
     query_template = \
         """
-        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd
+        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd, msenames.naics
         FROM crsp.dsf AS dsf
         LEFT JOIN crsp.msenames AS msenames ON dsf.permno = msenames.permno
         WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' 
