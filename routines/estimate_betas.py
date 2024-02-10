@@ -10,9 +10,9 @@ if __name__ == "__main__":
     transition_matrix = pd.read_pickle(f"{cfg.data_fldr}/regimes/transmat.pkl")
 
     estimation_dts = pd.date_range(cfg.bt_start_dt - pd.DateOffset(months=1), cfg.bt_end_dt, freq=cfg.estimation_freq)
-    if cfg.estimation_freq != 'ME':
+    if cfg.estimation_freq != 'M':
         rt = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
-        rt = pd.pivot_table(rt.to_frame(), index='date', columns='permno', values='ret')
+        rt = pd.pivot_table(rt, index='date', columns='permno', values='ret')
         first_obs_dt = rt.apply(pd.Series.first_valid_index)
         last_obs_dt = rt.apply(pd.Series.last_valid_index)
         rt = rt.add(1).groupby(pd.Grouper(freq=cfg.estimation_freq)).prod().sub(1)

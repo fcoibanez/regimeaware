@@ -3,6 +3,7 @@ if __name__ == "__main__":
     import pandas as pd
     import numpy as np
     from regimeaware.routines import cfg
+    from regimeaware.core.utils import assign_industry, assign_exchange
     from tqdm import tqdm
 
     # ---------------------------------------------------------------------
@@ -46,46 +47,7 @@ if __name__ == "__main__":
     crsp_monthly = conn.raw_sql(query)
 
     # Next, we follow Bali, Engle, and Murray (2016) in transforming listing exchange codes to explicit exchange names.
-    def assign_exchange(exchcd):
-        if exchcd in [1, 31]:
-            return "NYSE"
-        elif exchcd in [2, 32]:
-            return "AMEX"
-        elif exchcd in [3, 33]:
-            return "NASDAQ"
-        else:
-            return "Other"
-
     crsp_monthly["exchange"] = crsp_monthly["exchcd"].apply(assign_exchange)
-
-    # transform industry codes to industry descriptions
-    def assign_industry(siccd):
-        if 1 <= siccd <= 999:
-            return "Agriculture"
-        elif 1000 <= siccd <= 1499:
-            return "Mining"
-        elif 1500 <= siccd <= 1799:
-            return "Construction"
-        elif 2000 <= siccd <= 3999:
-            return "Manufacturing"
-        elif 4000 <= siccd <= 4899:
-            return "Transportation"
-        elif 4900 <= siccd <= 4999:
-            return "Utilities"
-        elif 5000 <= siccd <= 5199:
-            return "Wholesale"
-        elif 5200 <= siccd <= 5999:
-            return "Retail"
-        elif 6000 <= siccd <= 6799:
-            return "Finance"
-        elif 7000 <= siccd <= 8999:
-            return "Services"
-        elif 9000 <= siccd <= 9999:
-            return "Public"
-        else:
-            return "Missing"
-
-
     crsp_monthly["industry"] = crsp_monthly["siccd"].apply(assign_industry)
 
     """
@@ -127,20 +89,22 @@ if __name__ == "__main__":
     # CRSP (daily returns)
     query_template = \
         """
-        SELECT dsf.permno, dsf.date, dsf.ret
+        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd
         FROM crsp.dsf AS dsf
         LEFT JOIN crsp.msenames AS msenames ON dsf.permno = msenames.permno
-        WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' AND msenames.shrcd IN (10, 11)
+        WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' 
+        AND msenames.shrcd IN (10, 11)
+        AND msenames.exchcd IN (1, 2, 3, 31, 32, 33)
         """
 
     collect_responses = []
-    for yr in tqdm(range(1960, 2023), desc='Pulling daily responses'):
+    for yr in tqdm(range(1963, 2023), desc='Pulling daily responses'):
         query = query_template.format(yr=yr)
         res = conn.raw_sql(query)
         rt = res.set_index(['date', 'permno']).squeeze()
         rt = rt.sort_index()
         rt = rt[~rt.index.duplicated(keep='last')]
-        collect_responses += [rt]
+        collect_responses += [rt.dropna(subset='ret')]
 
     crsp_daily = pd.concat(collect_responses, axis=0)
     crsp_daily = crsp_daily.reset_index()

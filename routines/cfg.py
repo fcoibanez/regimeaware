@@ -13,7 +13,7 @@ factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
 
 n_states = 4  # Number of hidden states to use
 estimation_freq = "W-Wed"
-rebalance_freq = "ME"
+rebalance_freq = "M"
 data_freq = "W-Wed"
 obs_thresh = 260  # Five years of observations before estimating the RWLS
 forecast_horizon = 4  # In months

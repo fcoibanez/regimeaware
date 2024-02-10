@@ -59,7 +59,5 @@ if __name__ == "__main__":
     res_sigma_f.to_pickle(f'{cfg.data_fldr}/moments/factor_covars.pkl')
     res_mu_f.to_pickle(f'{cfg.data_fldr}/moments/factor_means.pkl')
 
-    res_sigma = pd.concat(collect_sigma, axis=0)
-    res_mu = pd.concat(collect_mu, axis=0)
     pd.to_pickle(collect_sigma, f'{cfg.data_fldr}/moments/stock_covars.pkl')
     pd.to_pickle(collect_mu, f'{cfg.data_fldr}/moments/stock_means.pkl')
