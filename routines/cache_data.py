@@ -89,7 +89,7 @@ if __name__ == "__main__":
     # CRSP (daily returns)
     query_template = \
         """
-        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd, msenames.naics
+        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd, msenames.naics, msenames.gics
         FROM crsp.dsf AS dsf
         LEFT JOIN crsp.msenames AS msenames ON dsf.permno = msenames.permno
         WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' 
@@ -111,3 +111,40 @@ if __name__ == "__main__":
     crsp_daily['date'] = pd.DatetimeIndex(crsp_daily['date'])
     crsp_daily = crsp_daily.set_index(['date', 'permno']).squeeze()
     crsp_daily.to_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
+
+    # ---------------------------------------------------------------------
+    # GICS industry classification
+    sec_id = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl').reset_index()['permno'].unique()
+    permno_str = ','.join([f"{str(x)}" for x in sec_id])
+
+    query = \
+        f"""
+        SELECT link.lpermno AS permno, co.gvkey, co.conm, co.ggroup, co.gind, co.gsector, co.gsubind, co.dldte, co.dlrsn
+        FROM comp.company as co
+        LEFT JOIN crsp.ccmxpf_linktable AS link ON co.gvkey = link.gvkey
+        WHERE link.linktype IN ('LU', 'LC')
+        AND linkprim IN ('P', 'C')
+        AND usedflag = 1
+        AND link.lpermno IN ({permno_str})
+        """
+
+    gics = conn.raw_sql(query)
+    gics.set_index('permno', inplace=True)
+    gics = gics[~gics.index.duplicated(keep='first')]
+
+    sector_mapping = {
+        '10': 'Energy',
+        '15': 'Materials',
+        '20': 'Industrials',
+        '25': 'Consumer Discretionary',
+        '30': 'Consumer Staples',
+        '35': 'Health Care',
+        '40': 'Financials',
+        '45': 'Information Technology',
+        '50': 'Communication Services',
+        '55': 'Utilities',
+        '60': 'Real Estate',
+    }
+
+    gics['sector'] = gics['gsector'].map(sector_mapping)
+    gics.to_pickle(f'{cfg.data_fldr}/gics_mapping.pkl')
