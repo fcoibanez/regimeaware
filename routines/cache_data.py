@@ -112,6 +112,11 @@ if __name__ == "__main__":
     crsp_daily = crsp_daily.set_index(['date', 'permno']).squeeze()
     crsp_daily.to_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
 
+    # Market cap
+    crsp = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
+    mktcap = crsp['shrout'].mul(crsp['prc']).abs().replace(0, np.nan)
+    mktcap.to_pickle(f'{cfg.data_fldr}/mktcap.pkl')
+
     # ---------------------------------------------------------------------
     # GICS industry classification
     sec_id = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl').reset_index()['permno'].unique()
