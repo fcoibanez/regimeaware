@@ -1,5 +1,6 @@
 .idea/
 *.pkl
+*.pdf
 __pycache__/
 data/
 img/
