@@ -32,6 +32,8 @@ if __name__ == "__main__":
     rebalance_dates = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.rebalance_freq)
     collect_betas = []
     collect_var = []
+    collect_state_betas = []
+    collect_state_resid = []
 
     for dt in rebalance_dates:
         as_of_dt = rt.index.asof(dt)
@@ -48,13 +50,26 @@ if __name__ == "__main__":
         g = emission_prob.xs(as_of_dt).copy()
         B = transition_matrix.xs(as_of_dt).copy()
 
+        collect_betas_t = []
+        collect_resid_t = []
+
         for sec_id in tqdm(Y, desc=dt.strftime('%Y %b')):
             y = Y[sec_id].dropna()
             mdl = RegimeWeightedLS(endog=y, exog=X, emission_prob=g)
             mdl.fit(add_constant=True)
-            mdl.predict(transition_matrix=B, as_of=dt, horizon=cfg.forecast_horizon)
+
+            b_i_t = mdl.params.copy().T
+            b_i_t.index = pd.MultiIndex.from_tuples([(dt, sec_id, x) for x in b_i_t.index], names=['as_of', 'id', 'state'])
+            collect_betas_t += [b_i_t]
+            
+            e_i_t = mdl.resid.copy()
+            e_i_t.index = pd.MultiIndex.from_tuples([(dt, x) for x in e_i_t.index], names=['as_of', 'date'])
+            e_i_t.columns.name = 'state'
+            e_i_t = e_i_t.melt(ignore_index=False, value_name=sec_id).set_index('state', append=True)
+            collect_resid_t += [e_i_t]
 
             # Forecasted betas
+            mdl.predict(transition_matrix=B, as_of=dt, horizon=cfg.forecast_horizon)
             res_params = mdl.cond_params.copy()
             idx = pd.MultiIndex.from_tuples([(dt, sec_id, x) for x in res_params.index], names=['date', 'id', 'factor'])
             res_params.index = idx
@@ -63,10 +78,18 @@ if __name__ == "__main__":
             # Regression residual variance (to be used in the projection)
             res_var[(dt, sec_id)] = mdl.cond_sigma
 
+        collect_state_resid += [pd.concat(collect_resid_t, axis=1)]
+        collect_state_betas += [pd.concat(collect_betas_t, axis=0)]
         collect_var += [res_var]
 
     betas = pd.concat(collect_betas, axis=0)
     betas.to_pickle(f'{cfg.data_fldr}/exposures/forecasted_betas.pkl')
+
+    state_betas = pd.concat(collect_state_betas, axis=0)
+    state_betas.to_pickle(f'{cfg.data_fldr}/exposures/state_betas.pkl')
+
+    state_resid = pd.concat(collect_state_resid, axis=0)
+    state_resid.to_pickle(f'{cfg.data_fldr}/exposures/state_resid.pkl')
 
     var = pd.concat(collect_var, axis=0)
     var.to_pickle(f'{cfg.data_fldr}/exposures/var.pkl')
