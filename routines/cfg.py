@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import numpy as np
 
-fldr = os.path.abspath(os.getcwd())
+fldr = r"D:\My Drive\bin\regimeaware"
 data_fldr = f"{fldr}/data"
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start

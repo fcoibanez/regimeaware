@@ -66,7 +66,8 @@ if __name__ == "__main__":
             e_i_t.index = pd.MultiIndex.from_tuples([(dt, x) for x in e_i_t.index], names=['as_of', 'date'])
             e_i_t.columns.name = 'state'
             e_i_t = e_i_t.melt(ignore_index=False, value_name=sec_id).set_index('state', append=True)
-            collect_resid_t += [e_i_t]
+            sigma_e_i_t = e_i_t.groupby(['as_of', 'state']).var(ddof=0)
+            collect_resid_t += [sigma_e_i_t]
 
             # Forecasted betas
             mdl.predict(transition_matrix=B, as_of=dt, horizon=cfg.forecast_horizon)
