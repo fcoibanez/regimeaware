@@ -8,7 +8,8 @@ if __name__ == "__main__":
 
     emission_prob = pd.read_pickle(f"{cfg.data_fldr}/regimes/emission_prob.pkl")
     transition_matrix = pd.read_pickle(f"{cfg.data_fldr}/regimes/transmat.pkl")
-
+    is_tradable = pd.read_pickle(f'{cfg.data_fldr}/is_tradable.pkl')
+    
     estimation_dts = pd.date_range(cfg.bt_start_dt - pd.DateOffset(months=1), cfg.bt_end_dt, freq=cfg.estimation_freq)
     if cfg.estimation_freq != 'M':
         rt = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
@@ -37,11 +38,8 @@ if __name__ == "__main__":
 
     for dt in rebalance_dates:
         as_of_dt = rt.index.asof(dt)
-        n_obs = rt.loc[:dt].iloc[-cfg.obs_thresh:].count()
-        length_flags = n_obs == cfg.obs_thresh
-        long_ids = length_flags[length_flags].index
-        active_ids = rt.xs(as_of_dt).dropna().index
-        sample_ids = list(set(active_ids).intersection(long_ids))
+        tradable_flags = is_tradable.xs(as_of_dt)
+        sample_ids = list(tradable_flags[tradable_flags].index)
 
         res_var = pd.Series(index=pd.MultiIndex.from_tuples([(dt, x) for x in sample_ids], names=['date', 'id']))
 
@@ -53,7 +51,7 @@ if __name__ == "__main__":
         collect_betas_t = []
         collect_resid_t = []
 
-        for sec_id in tqdm(Y, desc=dt.strftime('%Y %b')):
+        for sec_id in tqdm(Y.columns, desc=dt.strftime('%Y %b')):
             y = Y[sec_id].dropna()
             mdl = RegimeWeightedLS(endog=y, exog=X, emission_prob=g)
             mdl.fit(add_constant=True)
