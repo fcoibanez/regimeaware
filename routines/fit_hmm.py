@@ -6,9 +6,8 @@ if __name__ == "__main__":
     from hmmlearn.hmm import GaussianHMM
     from tqdm import tqdm
     import numpy as np
-    from sklearn import preprocessing
 
-    if cfg.estimation_freq != 'ME':
+    if cfg.estimation_freq != 'M':
         data = pd.read_pickle(f'{cfg.data_fldr}/ff_daily.pkl')[cfg.factor_set].sort_index()
         dts = pd.date_range(cfg.trn_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
         estimation_dts = pd.date_range(cfg.bt_start_dt - pd.DateOffset(months=1), cfg.bt_end_dt, freq=cfg.estimation_freq)
@@ -20,9 +19,8 @@ if __name__ == "__main__":
         estimation_dts = pd.date_range(cfg.bt_start_dt, cfg.bt_end_dt, freq=cfg.estimation_freq)
 
     # Warm-up run to get initial parameters
-    trn_raw = data.loc[cfg.trn_start_dt:cfg.bt_end_dt]
-    scaler = preprocessing.StandardScaler(copy=True).fit(trn_raw)
-    trn_std = scaler.transform(trn_raw)
+    trn = data.loc[cfg.trn_start_dt:cfg.bt_end_dt]
+
     mdl = GaussianHMM(
         n_components=cfg.n_states,
         covariance_type=cfg.hm_cov,
@@ -31,9 +29,8 @@ if __name__ == "__main__":
         random_state=cfg.hm_rs,
         tol=cfg.hm_tol,
     )
-    mdl.fit(trn_std)
-    mu_t = pd.DataFrame(mdl.means_, columns=trn_raw.columns)
-    mu_t = mu_t.add(scaler.mean_).mul(scaler.scale_)
+
+    mdl.fit(trn)
     mu_0 = mdl.means_
     sigma_0 = mdl.covars_
     transmat_0 = mdl.transmat_
@@ -47,9 +44,8 @@ if __name__ == "__main__":
     convergence_flags = pd.Series(index=estimation_dts, dtype=bool)
 
     for as_of_dt in tqdm(estimation_dts):
-        trn_raw = data.loc[cfg.trn_start_dt:as_of_dt, cfg.factor_set]
-        scaler = preprocessing.StandardScaler(copy=True).fit(trn_raw)
-        trn_std = scaler.transform(trn_raw)
+        trn = data.loc[cfg.trn_start_dt:as_of_dt, cfg.factor_set]
+
         mdl = GaussianHMM(
             n_components=cfg.n_states,
             covariance_type=cfg.hm_cov,
@@ -70,25 +66,22 @@ if __name__ == "__main__":
             mdl.covars_ = sigma_0
         mdl.transmat_ = transmat_0
 
-        mdl.fit(X=trn_std)
+        mdl.fit(X=trn)
         convergence_flags[as_of_dt] = mdl.monitor_.converged
 
         # State-dependent moments
-        mu_t = pd.DataFrame(mdl.means_, columns=trn_raw.columns)
-        mu_t = mu_t.add(scaler.mean_).mul(scaler.scale_)
+        mu_t = pd.DataFrame(mdl.means_, columns=trn.columns)
         mu_t.index = pd.MultiIndex.from_tuples([(as_of_dt, x) for x in mu_t.index], names=['as_of', 'state'])
         collect_mu += [mu_t]
 
-        D = np.diag(scaler.scale_)
-        rescaled_covars = [D @ r @ D for r in mdl.covars_]
-        sigma_t = pd.concat([pd.DataFrame(x, columns=trn_raw.columns) for x in rescaled_covars])
-        idx = pd.MultiIndex.from_tuples([(as_of_dt, y, x) for y in range(cfg.n_states) for x in trn_raw.columns], names=['as_of', 'state', 'factor'])
+        sigma_t = pd.concat([pd.DataFrame(x, columns=trn.columns) for x in mdl.covars_])
+        idx = pd.MultiIndex.from_tuples([(as_of_dt, y, x) for y in range(cfg.n_states) for x in trn.columns], names=['as_of', 'state', 'factor'])
         sigma_t.index = idx
         collect_sigma += [sigma_t]
 
         # Emission probabilities
-        gamma = mdl.predict_proba(X=trn_std)
-        idx = pd.MultiIndex.from_tuples([(as_of_dt, x) for x in trn_raw.index], names=['as_of', 'date'])
+        gamma = mdl.predict_proba(X=trn)
+        idx = pd.MultiIndex.from_tuples([(as_of_dt, x) for x in trn.index], names=['as_of', 'date'])
         emission_prob_t = pd.DataFrame(gamma, index=idx)
         collect_emission_prob += [emission_prob_t]
 
