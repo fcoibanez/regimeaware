@@ -42,7 +42,7 @@ if __name__ == "__main__":
         LEFT JOIN crsp.msenames as msenames ON msf.permno = msenames.permno AND msenames.namedt <= msf.date AND msf.date <= msenames.nameendt
         LEFT JOIN crsp.msedelist as msedelist
         ON msf.permno = msedelist.permno AND date_trunc('month', msf.date)::date = date_trunc('month', msedelist.dlstdt)::date
-        WHERE msf.date BETWEEN '01/01/1960' AND '12/31/2022' AND msenames.shrcd IN (10, 11)
+        WHERE msf.date BETWEEN '01/01/1960' AND '12/31/2023' AND msenames.shrcd IN (10, 11)
         """
     crsp_monthly = conn.raw_sql(query)
 
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         """
 
     collect_responses = []
-    for yr in tqdm(range(1963, 2023), desc='Pulling daily responses'):
+    for yr in tqdm(range(1963, 2024), desc='Pulling daily responses'):
         query = query_template.format(yr=yr)
         res = conn.raw_sql(query)
         rt = res.set_index(['date', 'permno']).squeeze()
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     # ---------------------------------------------------------------------
     # GICS industry classification
-    sec_id = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl').reset_index()['permno'].unique()
+    sec_id = pd.read_pickle(f'{cfg.data_fldr}/crsp.pkl').reset_index()['permno'].unique()
     permno_str = ','.join([f"{str(x)}" for x in sec_id])
 
     query = \

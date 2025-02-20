@@ -18,10 +18,13 @@ if __name__ == "__main__":
     mcap_flags = mcap_flags.rename({x: crsp_dates.asof(x) for x in rebalance_dates})
 
     # Stock must have factor loadings on rebalance date
-    avail_obs = crsp['ret'].groupby('permno').cumcount()
-    avail_flags = avail_obs >= cfg.obs_thresh
+    avail_obs = crsp['ret'].groupby('permno', group_keys=False).apply(lambda x: x.rolling(cfg.obs_thresh).count())
+    avail_flags = avail_obs == cfg.obs_thresh
+
+    # Active on rebalance date
+    is_active = crsp['ret'].notnull()
 
     # Tradable flags
-    df = crsp_flags.to_frame('crsp').join(mcap_flags.to_frame('mcap')).join(avail_flags.to_frame('loadings'))
+    df = crsp_flags.to_frame('crsp').join(is_active.to_frame('active')).join(mcap_flags.to_frame('mcap')).join(avail_flags.to_frame('loadings'))
     is_tradable = df.loc[rebalance_dates].fillna(False).all(axis=1)
     is_tradable.to_pickle(f'{cfg.data_fldr}/is_tradable.pkl')
