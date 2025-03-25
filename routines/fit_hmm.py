@@ -28,6 +28,7 @@ if __name__ == "__main__":
         algorithm=cfg.hm_algo,
         random_state=cfg.hm_rs,
         tol=cfg.hm_tol,
+        implementation=cfg.hm_implementation
     )
 
     mdl.fit(trn)

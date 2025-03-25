@@ -10,10 +10,9 @@ trn_start_dt = datetime(1963, 7, 31)  # Training start
 bt_start_dt = datetime(1993, 12, 31)  # Backtest start
 bt_end_dt = datetime(2023, 12, 31)  # Backtest end
 
-# factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
-factor_set = ["mktrf", "smb", "hml", "rmw", "cma", "umd"]  # Factors to study
+factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
 
-n_states = 2  # Number of hidden states to use
+n_states = 3  # Number of hidden states to use
 estimation_freq = "M"
 rebalance_freq = "M"
 data_freq = "M"
@@ -33,3 +32,4 @@ hm_rs = 123
 hm_tol = 1E-1
 hm_params_to_estimate = "tmc"
 hm_init_params_to_estimate = ""
+hm_implementation = "scaling" 
