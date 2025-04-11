@@ -3,7 +3,8 @@ from datetime import datetime
 import os
 import numpy as np
 
-fldr = r"D:\My Drive\bin\regimeaware"
+# fldr = r"D:\My Drive\bin\regimeaware"
+fldr = r"C:\Users\franc\My Drive\bin\regimeaware"
 data_fldr = f"{fldr}\data"
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start
@@ -33,3 +34,12 @@ hm_tol = 1E-1
 hm_params_to_estimate = "tmc"
 hm_init_params_to_estimate = ""
 hm_implementation = "scaling" 
+
+# Montecarlo simulations
+num_simulations = 1000
+# num_stocks = [10, 50, 100, 250, 500, 750, 1000]  # Number of stocks to simulate
+num_stocks = [500]  # Number of stocks to simulate
+var_alphas = [0.05]  # VaR alphas to use
+# var_alphas = [0.01, 0.05, 0.1]  # VaR alphas to use
+trn_periods = 600
+test_periods = 120

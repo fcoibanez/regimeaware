@@ -78,14 +78,8 @@ def min_EVaR_portfolio(alpha,L,mus,sigmas,pi):
     # the affine term to agree with the full EVaR expression
     obj = t - delta*np.log(alpha)
     
-    # TODO: add constraint that makes the tracking error to be less than the budget on each regime
-
     # Ininitializing the basic portfolio constraints
-    # constraints = [cp.sum(w) == 1 ,cp.norm(w,1) <= L]
-    constraints = [cp.sum(w) == 1, w >= 0, w <= .5]
-    # constraints = [cp.sum(w) == 0, w >= -L/2, w <= L/2, cp.norm(w,1) <= L]
-    # constraints = [cp.sum(w) == 0, cp.norm(w,1) <= L]
-    # constraints = [cp.sum(w) == 1, w >= 0, w <= .5]
+    constraints = [cp.sum(w) == 1, cp.norm(w, 1) <= L]
 
     # Getting the graph form affine constants
     F_K_tilde,G_K,d_K = graph_form_constants(mus,sigmas,pi)
@@ -109,31 +103,4 @@ def min_EVaR_portfolio(alpha,L,mus,sigmas,pi):
     prob = cp.Problem(cp.Minimize(obj),constraints)
     prob.solve(solver=cp.MOSEK)
 
-    return w.value,delta.value,prob
-
-
-if __name__ == "__main__":
-    from regimeaware.routines import cfg
-    import pandas as pd
-    from datetime import datetime
-
-    dt = datetime(2002, 12, 31)
-    as_of_dt = datetime(2002, 12, 25)
-
-    betas = pd.read_pickle(f'{cfg.data_fldr}/exposures/state_betas.pkl').xs(dt)
-    mu = pd.read_pickle(f'{cfg.data_fldr}/regimes/mu.pkl').xs(as_of_dt)
-    vcv = pd.read_pickle(f'{cfg.data_fldr}/regimes/sigma.pkl').xs(as_of_dt)
-    emission_prob = pd.read_pickle(f"{cfg.data_fldr}/regimes/emission_prob.pkl").xs(as_of_dt)
-    transition_matrix = pd.read_pickle(f"{cfg.data_fldr}/regimes/transmat.pkl").xs(as_of_dt)
-    gamma = emission_prob.xs(as_of_dt)[range(cfg.n_states)].values
-    state_sigma_e = pd.read_pickle(f'{cfg.data_fldr}/exposures/state_resid.pkl').xs(dt)
-
-    prt = EGMPortfolio(
-        factor_ret=mu,
-        factor_cov=vcv,
-        factor_loadings=betas,
-        idio_var=state_sigma_e,
-        component_probabilities=gamma
-    )
-
-    prt.fit()
+    return w.value,delta.value,prob.value
