@@ -1,6 +1,7 @@
 from hmmlearn.hmm import GaussianHMM
 import numpy as np
 import pandas as pd
+import os
 from regimeaware.routines import cfg
 
 
@@ -30,14 +31,10 @@ param_transmat = mdl_hmm.transmat_
 param_means = mdl_hmm.means_
 param_covars = mdl_hmm.covars_
 
+pd.to_pickle(mdl_hmm, f"{cfg.fldr}/data/sim/mdl_hmm.pkl")
 
 # --------------------------------------------
 # Returns simulation
-collect_sec_rt = {}
-collect_fctr_rt = {}
-collect_probs = {}
-
-
 for iter in range(cfg.num_simulations):
     print(iter)
     # --------------------------------------------
@@ -79,11 +76,11 @@ for iter in range(cfg.num_simulations):
         R[_t] += B.xs(s_t, level="state").mul(x_t).groupby("stock").sum()
     R += E
 
-    collect_sec_rt[iter] = R
-    collect_fctr_rt[iter] = X
-    collect_probs[iter] = G
+    dir_path = f"{cfg.fldr}/data/sim/{iter}"
 
-pd.to_pickle(collect_sec_rt, f"{cfg.fldr}/data/sim/sec_rt.pkl")
-pd.to_pickle(collect_fctr_rt, f"{cfg.fldr}/data/sim/fctr_rt.pkl")
-pd.to_pickle(collect_probs, f"{cfg.fldr}/data/sim/probs.pkl")
-pd.to_pickle(mdl_hmm, f"{cfg.fldr}/data/sim/mdl_hmm.pkl")
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+    pd.to_pickle(R, f"{dir_path}/sec_rt.pkl")
+    pd.to_pickle(X, f"{dir_path}/fctr_rt.pkl")
+    pd.to_pickle(G, f"{dir_path}/probs.pkl")

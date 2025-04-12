@@ -3,8 +3,8 @@ from datetime import datetime
 import os
 import numpy as np
 
-# fldr = r"D:\My Drive\bin\regimeaware"
-fldr = r"C:\Users\franc\My Drive\bin\regimeaware"
+fldr = r"D:\My Drive\bin\regimeaware"
+# fldr = r"C:\Users\franc\My Drive\bin\regimeaware"
 data_fldr = f"{fldr}\data"
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start
