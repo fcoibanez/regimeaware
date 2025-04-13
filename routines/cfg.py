@@ -3,13 +3,11 @@ from datetime import datetime
 import os
 import numpy as np
 
-fldr = r"D:\My Drive\bin\regimeaware"
-# fldr = r"C:\Users\franc\My Drive\bin\regimeaware"
-data_fldr = f"{fldr}\data"
+fldr = "D:/bin/regimeaware"
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start
 bt_start_dt = datetime(1993, 12, 31)  # Backtest start
-bt_end_dt = datetime(2023, 12, 31)  # Backtest end
+bt_end_dt = datetime(2024, 12, 31)  # Backtest end
 
 factor_set = ["mktrf", "smb", "hml", "rmw", "cma"]  # Factors to study
 

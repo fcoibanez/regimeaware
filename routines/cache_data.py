@@ -20,18 +20,7 @@ if __name__ == "__main__":
     ff = conn.raw_sql(query)
     ff['date'] = pd.DatetimeIndex(ff['date']) + pd.offsets.MonthEnd(0)
     ff = ff.set_index('date')
-    ff.to_pickle(f'{cfg.data_fldr}/ff.pkl')
-
-    # Daily version
-    query = \
-     f'''
-     SELECT date, mktrf, smb, hml, rmw, cma, umd, rf
-     FROM ff.fivefactors_daily
-     '''
-    ff_daily = conn.raw_sql(query)
-    ff_daily['date'] = pd.DatetimeIndex(ff_daily['date'])
-    ff_daily = ff_daily.set_index('date')
-    ff_daily.to_pickle(f'{cfg.data_fldr}/ff_daily.pkl')
+    ff.to_pickle(rf'{cfg.fldr}/data/ff.pkl')
 
     # ---------------------------------------------------------------------
     # CRSP (borrowed from https://www.tidy-finance.org/python/wrds-crsp-and-compustat.html)
@@ -42,7 +31,7 @@ if __name__ == "__main__":
         LEFT JOIN crsp.msenames as msenames ON msf.permno = msenames.permno AND msenames.namedt <= msf.date AND msf.date <= msenames.nameendt
         LEFT JOIN crsp.msedelist as msedelist
         ON msf.permno = msedelist.permno AND date_trunc('month', msf.date)::date = date_trunc('month', msedelist.dlstdt)::date
-        WHERE msf.date BETWEEN '01/01/1960' AND '12/31/2023' AND msenames.shrcd IN (10, 11)
+        WHERE msf.date BETWEEN '01/01/1960' AND '12/31/2024' AND msenames.shrcd IN (10, 11)
         """
     crsp_monthly = conn.raw_sql(query)
 
@@ -83,43 +72,11 @@ if __name__ == "__main__":
     crsp_monthly['dollar_vol'] = crsp_monthly['prc'].mul(crsp_monthly['vol'])
     crsp_monthly.drop(['rf', 'month'], axis=1, inplace=True)
     crsp_monthly['mktcap'] = crsp_monthly['shrout'].mul(crsp_monthly['altprc']).abs().replace(0, np.nan)
-    crsp_monthly.to_pickle(f'{cfg.data_fldr}/crsp.pkl')
-
-    # ---------------------------------------------------------------------
-    # CRSP (daily returns)
-    query_template = \
-        """
-        SELECT dsf.permno, dsf.date, dsf.ret, dsf.shrout, dsf.vol, dsf.prc, msenames.siccd, msenames.naics, msenames.gics
-        FROM crsp.dsf AS dsf
-        LEFT JOIN crsp.msenames AS msenames ON dsf.permno = msenames.permno
-        WHERE dsf.date BETWEEN '01/01/{yr}' AND '12/31/{yr}' 
-        AND msenames.shrcd IN (10, 11)
-        AND msenames.exchcd IN (1, 2, 3, 31, 32, 33)
-        """
-
-    collect_responses = []
-    for yr in tqdm(range(1963, 2024), desc='Pulling daily responses'):
-        query = query_template.format(yr=yr)
-        res = conn.raw_sql(query)
-        rt = res.set_index(['date', 'permno']).squeeze()
-        rt = rt.sort_index()
-        rt = rt[~rt.index.duplicated(keep='last')]
-        collect_responses += [rt.dropna(subset='ret')]
-
-    crsp_daily = pd.concat(collect_responses, axis=0)
-    crsp_daily = crsp_daily.reset_index()
-    crsp_daily['date'] = pd.DatetimeIndex(crsp_daily['date'])
-    crsp_daily = crsp_daily.set_index(['date', 'permno']).squeeze()
-    crsp_daily.to_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
-
-    # Market cap
-    crsp = pd.read_pickle(f'{cfg.data_fldr}/crsp_daily.pkl')
-    mktcap = crsp['shrout'].mul(crsp['prc']).abs().replace(0, np.nan)
-    mktcap.to_pickle(f'{cfg.data_fldr}/mktcap.pkl')
+    crsp_monthly.to_pickle(f'{cfg.fldr}/data/crsp.pkl')
 
     # ---------------------------------------------------------------------
     # GICS industry classification
-    sec_id = pd.read_pickle(f'{cfg.data_fldr}/crsp.pkl').reset_index()['permno'].unique()
+    sec_id = pd.read_pickle(f'{cfg.fldr}/data/crsp.pkl').reset_index()['permno'].unique()
     permno_str = ','.join([f"{str(x)}" for x in sec_id])
 
     query = \
@@ -152,4 +109,4 @@ if __name__ == "__main__":
     }
 
     gics['sector'] = gics['gsector'].map(sector_mapping)
-    gics.to_pickle(f'{cfg.data_fldr}/gics_mapping.pkl')
+    gics.to_pickle(f'{cfg.fldr}/data/gics_mapping.pkl')
