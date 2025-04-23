@@ -3,7 +3,7 @@ from datetime import datetime
 import os
 import numpy as np
 
-fldr = "D:/bin/regimeaware"
+fldr = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 trn_start_dt = datetime(1963, 7, 31)  # Training start
 bt_start_dt = datetime(1993, 12, 31)  # Backtest start
