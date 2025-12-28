@@ -1,5 +1,10 @@
-""""Module constants"""
-from enum import Enum
+""" "Module constants"""
+
+from enum import Enum, auto
+
+MIN_OBS = 120  # Minimum number of observations required for conditional-distribution estimation
+MICROCAP_THRESHOLD = 0.01  # Micro-cap threshold for market coverage filtering
+
 
 class DataConstants(Enum):
     """Enumeration for data constants used in the EVaR portfolio optimization."""
@@ -7,8 +12,34 @@ class DataConstants(Enum):
     WDIR = "D:/bin/regimeaware"
     WRDS_USERNAME = "fcoibanez"
 
-class SimulationConstants(Enum):
+
+class SimulationParameters(Enum):
     """Enumeration for simulation constants."""
 
-    N_SIMULATIONS = 1000
-    TIME_HORIZON = 252  # Number of trading days in a year
+    TRIALS = 5000
+    OOS_PERIODS = 120
+    IS_PERIODS = 600
+    NUM_STOCKS = 500
+
+
+class HMMParameters(Enum):
+    """Enumeration for HMM parameters."""
+
+    STATES = 3
+    MINCOV = 1e-3
+    SEED = 13
+    ITER = 1000
+    COV = "diag"
+    TOL = 1e-1
+    IMPLEMENTATION = "scaling"
+
+
+class Factors(Enum):
+    """Enumeration for factor to be used for training."""
+
+    mktrf = auto()
+    smb = auto()
+    hml = auto()
+    rmw = auto()
+    cma = auto()
+    umd = auto()
