@@ -2,10 +2,10 @@
 Backtesting script for regime-aware portfolio optimization using HMM and RWLS.
 
 Implements Monte Carlo simulations (5,000 trials) to evaluate out-of-sample performance
-of RWLS framework against regime-agnostic baselines. Manages 500-stock portfolios across
+of RWLS framework against regime-agnostic baselines. Manages 250-stock portfolios across
 risk aversion levels (φ=1-50), using CVXPY for optimization.
 
-Based on empirical section of "Regime-Aware Portfolio Optimization..." (Revised Manuscript).
+Based on empirical section of "Regime-Aware Portfolio Optimization...".
 Results show improved returns and diversification.
 """
 
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     for phi in SimulationParameters.RISK_AVERSION.value:
         collect_res = []
 
-        for i in tqdm(iterations):
+        for i in tqdm(iterations, desc=f"Risk aversion φ={phi}"):
             collect_wts = {}
 
             for t in range(SimulationParameters.OOS_PERIODS.value):
