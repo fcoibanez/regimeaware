@@ -1,10 +1,45 @@
 """Auxiliary function."""
+
 import pandas as pd
 import numpy as np
-from regimeaware.routines.cfg import factor_set
 
 
-def looking_fwd_prob(transmat: pd.DataFrame, current_emission_prob: pd.Series, horizon: int = 1):
+def market_coverage(market_cap, thresh):
+    """Selects stocks based on market cap threshold."""
+    tot_mcap = market_cap.sum()
+    target_mcap = tot_mcap * thresh
+    pick = (
+        market_cap.sort_values(ascending=False)
+        .cumsum()
+        .loc[lambda x: x <= target_mcap]
+        .index
+    )
+    size_flag = pd.Series(False, index=market_cap.index, dtype=bool)
+    size_flag[pick] = True
+    return size_flag
+
+
+def cleanup_ts(original_ts, thresh):
+    segment_mapping = (original_ts.notna() != original_ts.notna().shift(1)).cumsum()
+    segment_mapping_notna = segment_mapping[original_ts.notna()]
+    continuous_segment_id = (
+        segment_mapping_notna[original_ts.notna()]
+        .groupby(segment_mapping_notna[original_ts.notna()])
+        .count()
+        .idxmax()
+    )
+    continuous_ts = original_ts[segment_mapping == continuous_segment_id].reindex(
+        original_ts.index
+    )
+    if continuous_ts.count() >= thresh:
+        return continuous_ts
+    else:
+        return pd.Series(index=original_ts.index)
+
+
+def looking_fwd_prob(
+    transmat: pd.DataFrame, current_emission_prob: pd.Series, horizon: int = 1
+):
     """Looking-forward emission probabilities.
 
     Combines the transition matrix and current emission probabilities to come up with
@@ -22,16 +57,6 @@ def looking_fwd_prob(transmat: pd.DataFrame, current_emission_prob: pd.Series, h
     g_t = B_h.T @ g
 
     return pd.Series(g_t.flatten(), index=transmat.index)
-
-
-def unpack_betas(raw):
-    """xyz.
-
-    :param raw:
-    :return:
-    """
-    res = pd.pivot_table(raw.reset_index(name='value'), index='id', columns='factor', values='value')
-    return res[['const'] + factor_set]
 
 
 def project_covariances(betas: pd.DataFrame, factor_covariance, residual_variances):
@@ -57,8 +82,8 @@ def project_means(betas, factor_means):
     """
     theta = betas.values.T
     mu_f = factor_means.reindex(betas.columns)
-    if 'const' in mu_f.index:
-        mu_f['const'] = 1
+    if "const" in mu_f.index:
+        mu_f["const"] = 1
     mu = theta.T @ mu_f.values.reshape(-1, 1)
     res = pd.Series(mu.flatten(), index=betas.index)
     return res
@@ -82,7 +107,9 @@ def expected_covar(conditional_covars, probs, conditional_means):
         V_st += g * (V + mu_s @ mu_s.T)
     mu_st = expected_means(conditional_means, probs).values.reshape(-1, 1)
     V_st -= mu_st @ mu_st.T
-    V_st = pd.DataFrame(V_st, index=conditional_covars.columns, columns=conditional_means.columns)
+    V_st = pd.DataFrame(
+        V_st, index=conditional_covars.columns, columns=conditional_means.columns
+    )
     return V_st
 
 

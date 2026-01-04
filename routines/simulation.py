@@ -1,5 +1,5 @@
 if __name__ == "__main__":
-    import tqdm
+    from tqdm import tqdm
     import numpy as np
     import pandas as pd
     from hmmlearn.hmm import GaussianHMM
@@ -34,7 +34,6 @@ if __name__ == "__main__":
     collect_probs = {}
 
     for iter in tqdm(range(SimulationParameters.TRIALS.value)):
-        print(iter)
         # --------------------------------------------
         # Factor returns
         gen_hmm = GaussianHMM(
