@@ -17,9 +17,10 @@ class SimulationParameters(Enum):
     """Enumeration for simulation constants."""
 
     TRIALS = 5000
-    OOS_PERIODS = 120
+    OOS_PERIODS = 60
     IS_PERIODS = 600
-    NUM_STOCKS = 500
+    NUM_STOCKS = 200
+    RISK_AVERSION = (1, 5, 10, 25, 50)
 
 
 class HMMParameters(Enum):
