@@ -16,7 +16,7 @@ class DataConstants(Enum):
 class SimulationParameters(Enum):
     """Enumeration for simulation constants."""
 
-    TRIALS = 5000
+    TRIALS = 1000
     OOS_PERIODS = 60
     IS_PERIODS = 600
     NUM_STOCKS = 200
