@@ -4,6 +4,8 @@ from enum import Enum, auto
 
 MIN_OBS = 120  # Minimum number of observations required for conditional-distribution estimation
 MICROCAP_THRESHOLD = 0.01  # Micro-cap threshold for market coverage filtering
+HISTORY_START_DT = "1963-07-31"
+HISTORY_END_DT = "2024-12-31"
 
 
 class DataConstants(Enum):
@@ -29,6 +31,7 @@ class HMMParameters(Enum):
     STATES = 3
     MINCOV = 1e-3
     SEED = 13
+    RS = 2
     ITER = 1000
     COV = "diag"
     TOL = 1e-1
@@ -44,3 +47,5 @@ class Factors(Enum):
     rmw = auto()
     cma = auto()
     umd = auto()
+
+## Setup and Configuration
