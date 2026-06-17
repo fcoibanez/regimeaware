@@ -27,7 +27,7 @@ if __name__ == "__main__":
     # CRSP (borrowed from https://www.tidy-finance.org/python/wrds-crsp-and-compustat.html)
     query = \
         """
-        SELECT msf.permno, msf.date, date_trunc('month', msf.date)::date as month, msf.ret, msf.shrout, msf.vol, msf.prc, msf.altprc, msenames.exchcd, msenames.siccd, msedelist.dlret, msedelist.dlstcd
+        SELECT msf.permno, msf.date, date_trunc('month', msf.date)::date as month, msf.ret, msf.shrout, msf.vol, msf.prc, msf.altprc, msf.bid, msf.ask, msenames.exchcd, msenames.siccd, msedelist.dlret, msedelist.dlstcd
         FROM crsp.msf AS msf
         LEFT JOIN crsp.msenames as msenames ON msf.permno = msenames.permno AND msenames.namedt <= msf.date AND msf.date <= msenames.nameendt
         LEFT JOIN crsp.msedelist as msedelist
