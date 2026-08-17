@@ -6,6 +6,8 @@ MIN_OBS = 120  # Minimum number of observations required for conditional-distrib
 MICROCAP_THRESHOLD = 0.01  # Micro-cap threshold for market coverage filtering
 HISTORY_START_DT = "1963-07-31"
 HISTORY_END_DT = "2024-12-31"
+ROLLING_WINDOW = 36  # Rolling window size for OLS estimation
+CK_WINDOW = 24  # Costa & Kwon (2020) regime-conditional estimation window
 
 
 class DataConstants(Enum):
