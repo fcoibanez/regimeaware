@@ -264,8 +264,8 @@ print(crash_window.mean(axis=1).round(3).to_string())
 # %%
 SHADE = {"Bull": "1.0", "Reversal": "0.62", "Bear": "0.10"}
 
-fig = plt.figure(figsize=(7, 3.1))
-outer = fig.add_gridspec(2, 1, height_ratios=[1.2, 1.2], hspace=0.72)
+fig = plt.figure(figsize=(7, 2.85))
+outer = fig.add_gridspec(2, 1, height_ratios=[1.25, 0.9], hspace=0.9)
 top = outer[0].subgridspec(2, 1, height_ratios=[1.0, 0.5], hspace=0.15)
 ax_ribbon = fig.add_subplot(top[0])
 ax_nber = fig.add_subplot(top[1])
@@ -348,9 +348,9 @@ for side in ["top", "right"]:
 
 fig.text(0.012, 0.985, r"\textbf{A.} Regimes and NBER recessions",
          fontsize=9, va="top")
-fig.text(0.012, 0.50,
+fig.text(0.012, ax_event.get_position().y1 + 0.05,
          r"\textbf{B.} Reversal probability around momentum crashes"
-         f" ($n={crash_window.shape[1]}$)", fontsize=9, va="top")
+         f" ($n={crash_window.shape[1]}$)", fontsize=9, va="bottom")
 
 plt.savefig(f"{DataConstants.WDIR.value}/img/regime_timeline.pdf", dpi=300,
             transparent=True, bbox_inches="tight")
