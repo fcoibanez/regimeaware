@@ -304,13 +304,14 @@ if forecast is not None:
     table5a.index.names = ["phi", "metric"]
     table5a = table5a[list(STATES.values())]
 
-    # Four columns against a 6.5-inch measure leave the table bunched at the left
-    # margin under a caption that spans the full width, which reads as an error.
+    # Four fifths of the measure. Left at its natural width the table sits bunched
+    # against the left margin under a caption spanning the full block; stretched
+    # to the whole measure the four columns spread too thin.
     write_tabular(
         table5a,
         f"{DataConstants.WDIR.value}/tables/table5a_regime_conditional.tex",
         panel_level="phi",
-        full_width=True,
+        full_width=0.8,
         notes=["Advantage of the proposed framework over the regime-agnostic "
                "benchmark, by the regime governing each period."],
     )

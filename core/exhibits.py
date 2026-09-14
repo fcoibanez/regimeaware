@@ -164,6 +164,10 @@ def write_tabular(
         # width falls short of the measure otherwise sits bunched against the left
         # margin, which reads as crowded however much white space surrounds it.
         #
+        # ``True`` stretches to the full measure; a number stretches to that
+        # fraction of it, which suits a table with few enough columns that the
+        # full width would leave visible gaps between them.
+        #
         # The stretch glue goes *after* the first column, not before it. Placed at
         # the head of the preamble it replaces the leading \tabcolsep, so the data
         # rows lose their left pad while a \multicolumn panel heading -- which does
@@ -171,7 +175,9 @@ def write_tabular(
         # relative to the rows beneath it.
         environment = "tabular*"
         stretched = column_format[:1] + "@{\\extracolsep{\\fill}}" + column_format[1:]
-        opening = f"\\begin{{tabular*}}{{\\textwidth}}{{{stretched}}}"
+        measure = ("\\textwidth" if full_width is True
+                   else f"{float(full_width):g}\\textwidth")
+        opening = f"\\begin{{tabular*}}{{{measure}}}{{{stretched}}}"
     else:
         environment = "tabular"
         opening = f"\\begin{{tabular}}{{{column_format}}}"
