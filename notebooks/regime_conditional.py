@@ -32,9 +32,14 @@ plt.rcParams.update(
 
 PHI_LIST = [10, 25, 50]
 
-# The two halves of the mechanism table share a width. Unequal widths are what
-# made the pair look disjointed even under one caption.
-PANEL_WIDTH = 0.8
+# The two halves of the mechanism table share a width, and it is the full
+# measure: Panel B's natural width exceeds four fifths of it, and tabular* cannot
+# set a table narrower than its content -- the rules would be drawn at the
+# declared width with the numbers running past them.
+#
+# The seam between the panels is a rule of the same weight as the outer ones, so
+# the pair reads as a single table rather than two stacked under one caption.
+PANEL_WIDTH = True
 
 # State indices as fitted, ordered by market risk premium. Regime 2 is the
 # short-lived state with a sharply negative momentum premium.
@@ -314,6 +319,7 @@ if forecast is not None:
         panel_level="phi",
         full_width=PANEL_WIDTH,
         title="Panel A: Performance by the regime governing each period",
+        bottom_rule="\\midrule[\\heavyrulewidth]",
         notes=["Advantage of the proposed framework over the regime-agnostic "
                "benchmark, by the regime governing each period."],
     )
@@ -364,6 +370,7 @@ if forecast is not None:
         format_axis="columns",
         full_width=PANEL_WIDTH,
         title="Panel B: Quality of the regime probabilities",
+        top_rule=False,
         notes=["Scored against the realised regime over all simulated paths.",
                "The constant forecast always predicts the most frequent state; "
                "it is reported as the hit rate that forecast attains."],

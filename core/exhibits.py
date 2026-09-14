@@ -143,6 +143,8 @@ def write_tabular(
     full_width=False,
     rule_below_panel=True,
     title=None,
+    top_rule=True,
+    bottom_rule=True,
 ):
     """Write ``frame`` as a booktabs tabular.
 
@@ -183,7 +185,14 @@ def write_tabular(
         environment = "tabular"
         opening = f"\\begin{{tabular}}{{{column_format}}}"
 
-    lines = [opening, "\\toprule"]
+    # ``top_rule`` and ``bottom_rule`` take True for the booktabs default, False
+    # to omit the rule, or a string to substitute one. Omitting them is how two
+    # tabulars are joined into what reads as a single table: the first closes
+    # with a heavy rule in place of its bottom rule, and the second opens with
+    # none, so the seam carries the same weight as the outer rules.
+    lines = [opening]
+    if top_rule:
+        lines.append("\\toprule" if top_rule is True else top_rule)
 
     # A title set inside the tabular rather than above it, so the rules that
     # enclose it are the table's own and span exactly its width. Set outside, the
@@ -245,7 +254,8 @@ def write_tabular(
                 cells = " & ".join(_render(v, spec) for v in row)
             lines.append(f"{_escape_label(label)} & {cells} \\\\")
 
-    lines.append("\\bottomrule")
+    if bottom_rule:
+        lines.append("\\bottomrule" if bottom_rule is True else bottom_rule)
     lines.append(f"\\end{{{environment}}}")
 
     if notes:
