@@ -142,6 +142,7 @@ def write_tabular(
     format_axis="index",
     full_width=False,
     rule_below_panel=True,
+    title=None,
 ):
     """Write ``frame`` as a booktabs tabular.
 
@@ -183,6 +184,18 @@ def write_tabular(
         opening = f"\\begin{{tabular}}{{{column_format}}}"
 
     lines = [opening, "\\toprule"]
+
+    # A title set inside the tabular rather than above it, so the rules that
+    # enclose it are the table's own and span exactly its width. Set outside, the
+    # heading floats free of the rules and two stacked tables read as two
+    # exhibits that happen to share a caption.
+    if title is not None:
+        lines.append(
+            f"\\multicolumn{{{n_cols + 1}}}{{c}}{{\\textit{{{_escape_label(title)}}}}}"
+            " \\\\"
+        )
+        lines.append("\\midrule")
+
     lines.append(
         f"{index_header} & "
         + " & ".join(_escape_label(c) for c in frame.columns)

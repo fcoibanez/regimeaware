@@ -435,20 +435,23 @@ for arm in available_main:
 
 # %%
 STYLES = {
-    "model_estimated": dict(ls="-", lw=1.8),
-    "baseline": dict(ls="--", lw=1.25),
-    "rolling_ols": dict(ls="-.", lw=1.1),
-    "equalweighted": dict(ls=(0, (1, 1)), lw=1.2),
-    "global_min_var": dict(ls=(0, (5, 2)), lw=0.9),
-    "ck_uni_2s": dict(ls=":", lw=1.4),
+    # The proposed framework and the benchmark it is measured against, in black.
+    "model_estimated": dict(ls="-", lw=1.8, color="0.0"),
+    "baseline": dict(ls="--", lw=1.3, color="0.0"),
+    # Costa and Kwon solid, so it reads as a single continuous line rather than
+    # one more dash pattern among several.
+    "ck_uni_2s": dict(ls="-", lw=1.3, color="0.50"),
+    "rolling_ols": dict(ls="-.", lw=1.2, color="0.50"),
+    "equalweighted": dict(ls=(0, (1, 1.4)), lw=1.2, color="0.68"),
+    "global_min_var": dict(ls=(0, (5, 2)), lw=1.1, color="0.68"),
 }
 
 fig, axes = plt.subplots(1, 3, figsize=(7, 3), sharey=True)
 for ax, phi in zip(axes, PHI_LIST):
     for arm in available_main:
-        ax.plot(cost_grid * 100, curves[(arm, phi)], c="k",
+        ax.plot(cost_grid * 100, curves[(arm, phi)],
                 label=LABELS[arm] if phi == PHI_LIST[0] else "",
-                **STYLES.get(arm, dict(ls="-", lw=1)))
+                **STYLES.get(arm, dict(ls="-", lw=1, color="0.0")))
     if realised_one_way is not None:
         ax.axvline(realised_one_way * 100, color="0.35", lw=1)
         ax.axvspan(tc["spread_post_dec_vw"] / 2 * 100, realised_one_way * 100,
@@ -480,8 +483,8 @@ for ax, phi in zip(axes, PHI_LIST):
     for arm in available_main:
         sns.kdeplot(
             data=metrics[arm].xs(phi)["Sharpe Ratio"], cumulative=True, ax=ax,
-            c="k", zorder=25, label=LABELS[arm] if phi == PHI_LIST[0] else "",
-            **STYLES.get(arm, dict(ls="-", lw=1)),
+            zorder=25, label=LABELS[arm] if phi == PHI_LIST[0] else "",
+            **STYLES.get(arm, dict(ls="-", lw=1, color="0.0")),
         )
     ax.set_title(rf"$\varphi={phi}$")
     ax.set_xlabel("Sharpe Ratio")

@@ -32,6 +32,10 @@ plt.rcParams.update(
 
 PHI_LIST = [10, 25, 50]
 
+# The two halves of the mechanism table share a width. Unequal widths are what
+# made the pair look disjointed even under one caption.
+PANEL_WIDTH = 0.8
+
 # State indices as fitted, ordered by market risk premium. Regime 2 is the
 # short-lived state with a sharply negative momentum premium.
 STATES = {0: "Bull", 1: "Reversal", 2: "Bear"}
@@ -304,14 +308,12 @@ if forecast is not None:
     table5a.index.names = ["phi", "metric"]
     table5a = table5a[list(STATES.values())]
 
-    # Four fifths of the measure. Left at its natural width the table sits bunched
-    # against the left margin under a caption spanning the full block; stretched
-    # to the whole measure the four columns spread too thin.
     write_tabular(
         table5a,
         f"{DataConstants.WDIR.value}/tables/table5a_regime_conditional.tex",
         panel_level="phi",
-        full_width=0.8,
+        full_width=PANEL_WIDTH,
+        title="Panel A: Performance by the regime governing each period",
         notes=["Advantage of the proposed framework over the regime-agnostic "
                "benchmark, by the regime governing each period."],
     )
@@ -360,6 +362,8 @@ if forecast is not None:
         f"{DataConstants.WDIR.value}/tables/table5b_forecast_quality.tex",
         formats={c: "num3" for c in panel_b.columns},
         format_axis="columns",
+        full_width=PANEL_WIDTH,
+        title="Panel B: Quality of the regime probabilities",
         notes=["Scored against the realised regime over all simulated paths.",
                "The constant forecast always predicts the most frequent state; "
                "it is reported as the hit rate that forecast attains."],
