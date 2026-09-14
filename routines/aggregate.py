@@ -10,11 +10,16 @@ if __name__ == "__main__":
 
     ALL_MODELS = [
         "model",
+        "model_estimated",
+        "model_oracle",
         "baseline",
         "equalweighted",
         "global_min_var",
         "rolling_ols",
+        "rolling_ols_24m",
+        "rolling_ols_60m",
         "ck_uni",
+        "ck_uni_2s",
         "ck_multi",
         "rwls_mvo",
         "rwls_mixture",
