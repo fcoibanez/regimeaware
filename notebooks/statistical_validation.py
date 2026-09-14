@@ -515,6 +515,33 @@ plt.savefig(f"{DataConstants.WDIR.value}/img/benchmark_ecdf.pdf", dpi=300,
 plt.show()
 
 # %% [markdown]
+# The dominance the figure shows is tested rather than asserted: a one-sided
+# Kolmogorov–Smirnov test of the proposed arm's Sharpe ratios against each
+# benchmark's, with the alternative that the proposed distribution lies to the
+# right. These are the statistics the manuscript quotes alongside the figure.
+
+# %%
+from scipy import stats
+
+ks_rows = {}
+for phi in PHI_LIST:
+    proposed = metrics[PROPOSED].xs(phi)["Sharpe Ratio"].dropna()
+    for arm in available_main:
+        if arm == PROPOSED:
+            continue
+        other = metrics[arm].xs(phi)["Sharpe Ratio"].dropna()
+        # alternative="less": the proposed arm's empirical CDF lies below the
+        # benchmark's, i.e. its Sharpe ratios are stochastically larger.
+        res = stats.ks_2samp(proposed, other, alternative="less")
+        ks_rows[(phi, LABELS[arm])] = {
+            "KS statistic": res.statistic, "p-value": res.pvalue,
+        }
+
+ks_table = pd.DataFrame(ks_rows).T
+ks_table.index.names = ["phi", "vs."]
+print(ks_table.to_string(float_format=lambda v: f"{v:.3g}"))
+
+# %% [markdown]
 # ## 9. Sensitivity to the rolling-window benchmark
 #
 # Reviewer 3 proposes rolling-window OLS as a tighter control. The window length
