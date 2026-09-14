@@ -135,7 +135,7 @@ def write_tabular(
     path,
     formats=None,
     panel_level=None,
-    panel_prefix="Panel",
+    panel_prefix=None,
     index_header="",
     notes=None,
     column_format=None,
@@ -200,10 +200,16 @@ def write_tabular(
         if panel is not None:
             if position:
                 lines.append("\\midrule")
-            letter = chr(ord("A") + position)
+            # The risk-aversion level names the division on its own. Lettering it
+            # as well spends Panel A on something that is not a panel of the
+            # argument, and leaves nothing to call the halves of a table that
+            # genuinely has two -- which then have to nest inside it.
+            heading = f"$\\varphi = {panel}$"
+            if panel_prefix:
+                letter = chr(ord("A") + position)
+                heading = f"{panel_prefix} {letter}: {heading}"
             lines.append(
-                f"\\multicolumn{{{n_cols + 1}}}{{l}}{{\\textit{{{panel_prefix} "
-                f"{letter}: $\\varphi = {panel}$}}}} \\\\"
+                f"\\multicolumn{{{n_cols + 1}}}{{l}}{{\\textit{{{heading}}}}} \\\\"
             )
             if rule_below_panel:
                 # Separates a panel heading from its rows, so a reader scanning a
