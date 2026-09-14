@@ -37,8 +37,15 @@ def fit_wls(X, Y, weights=None):
     coefs = np.linalg.solve(X.T @ Xw, Xw.T @ Y).T
 
     resid = Y - X @ coefs.T
-    dof = weights.sum() - X.shape[1]
-    resid_var = (weights[:, None] * resid**2).sum(axis=0) / dof
+
+    # A regime whose posterior mass is smaller than the parameter count would
+    # otherwise be handed negative degrees of freedom, producing negative
+    # variances and an asset covariance matrix that is not positive semidefinite.
+    # Callers are expected to avoid that case (see core.estimation.guard_weights);
+    # this floor is here so that a caller which does not cannot silently produce
+    # an invalid covariance matrix.
+    dof = max(weights.sum() - X.shape[1], 1.0)
+    resid_var = np.maximum((weights[:, None] * resid**2).sum(axis=0) / dof, 0.0)
 
     return coefs, resid_var
 
