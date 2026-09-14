@@ -39,6 +39,7 @@ FIGURES = [
 
 TABLES = [
     "table_state_selection.tex",   # Table 1: choice of the number of regimes
+    "table_momentum_crashes.tex",
     "table2_performance.tex",
     "table3_significance.tex",
     "table4_decomposition.tex",

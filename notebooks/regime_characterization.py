@@ -28,8 +28,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.patches import Patch
 
+from regimeaware.core.exhibits import write_tabular
 from regimeaware.constants import (
     HISTORY_END_DT,
     HISTORY_START_DT,
@@ -219,139 +219,124 @@ print(pd.DataFrame(dur).T[
 ].round(2).to_string())
 
 # %% [markdown]
-# ## 6. Momentum crashes in event time
+# ## 6. Momentum crashes
 #
-# Averaging the *Reversal* probability over a window centred on each crash shows
-# how sharply the state arrives and how quickly it decays, which a calendar plot
-# of the full sample cannot: the eight crash months are scattered across sixty
-# years and each occupies a fraction of a millimetre of the time axis.
-
+# Eight months scattered across sixty years are not a time series, and drawing
+# them as one flatters the evidence: on a calendar axis each occupies a fraction
+# of a millimetre, and averaged in event time a smooth curve with a standard
+# error band implies more structure than eight observations support. Listed with
+# the probabilities assigned to them they make the point directly.
+#
+# The market column is the part that is not definitional. The *Reversal* state is
+# characterised by a large negative mean on UMD, so assigning extreme negative
+# UMD months to it is close to circular; nothing in its definition refers to the
+# market factor, yet every one of these months carries a strong positive market
+# return. That is the configuration the momentum-crash literature describes, a
+# sharp rebound in which past losers surge.
 
 # %%
-def event_study(series, dates, window):
-    """Regime probability in the months around each dated event, by episode."""
-    loc = X.index.get_indexer([pd.Timestamp(d) for d in dates], method="nearest")
-    panel = {}
-    for j, l in enumerate(loc):
-        if l - window < 0 or l + window + 1 > len(series):
-            continue
-        panel[dates[j]] = series.values[l - window: l + window + 1]
-    return pd.DataFrame(panel, index=range(-window, window + 1))
+crash_table = pd.DataFrame(
+    {
+        f"{d:%Y-%m}": {
+            "$UMD$": ff.loc[d, "umd"],
+            "$Mkt-Rf$": ff.loc[d, "mktrf"],
+            "P(Bull)": probs.loc[d, "Bull"],
+            "P(Reversal)": probs.loc[d, "Reversal"],
+            "P(Bear)": probs.loc[d, "Bear"],
+        }
+        for d in crashes
+    }
+).T
+crash_table.index.name = None
 
+# Without the unconditional row a reader cannot tell whether a Reversal
+# probability of 0.99 is remarkable.
+crash_table.loc["Unconditional mean"] = {
+    "$UMD$": ff["umd"].mean(),
+    "$Mkt-Rf$": ff["mktrf"].mean(),
+    "P(Bull)": probs["Bull"].mean(),
+    "P(Reversal)": probs["Reversal"].mean(),
+    "P(Bear)": probs["Bear"].mean(),
+}
 
-crash_window = event_study(probs["Reversal"], list(crashes), 6)
-crash_uncond = probs["Reversal"].drop(crashes).mean()
+print(crash_table.round(4).to_string())
 
-print(f"unconditional P(Reversal) outside crash months: {crash_uncond:.3f}")
-print(f"\nmean P(Reversal) in event time ({crash_window.shape[1]} episodes):")
-print(crash_window.mean(axis=1).round(3).to_string())
+write_tabular(
+    crash_table,
+    f"{DataConstants.WDIR.value}/tables/table_momentum_crashes.tex",
+    formats={"$UMD$": "pct2", "$Mkt-Rf$": "pct2", "P(Bull)": "num3",
+             "P(Reversal)": "num3", "P(Bear)": "num3"},
+    format_axis="columns",
+    notes=["Months in the first percentile of the momentum factor over the "
+           "estimation sample."],
+)
 
 # %% [markdown]
 # ## 7. The figure
 #
-# Panel A abandons the probability axis altogether. Plotting a monthly
-# probability that moves between zero and one, for a state whose implied mean
-# duration is barely two months, produces a picket fence that no amount of
-# restyling repairs: at sixty years across a single text width there are roughly
-# nine months to a tenth of an inch. Encoding the modal regime as a shaded strip
-# keeps every month exactly as classified while letting the eye read the
-# clustering, which is the whole of the claim. The recession indicator sits
-# directly beneath on a shared axis so the comparison is a vertical glance.
+# The Bear probability on a nought-to-one axis with recessions shaded behind it,
+# which is how this comparison is conventionally drawn. An earlier version filled
+# the area under the probability, which turns a spiky monthly series into a solid
+# block; a thin line leaves it legible.
 #
-# Panel B carries the momentum-crash correspondence, which the calendar view
-# cannot show for the reason given above.
+# A six-month centred moving average is plotted. Averaging a state whose implied
+# duration is 2.2 months might be expected to flatten it, and it does not, because
+# the episodes arrive in clusters: the peak falls only from 1.00 to 0.97 and the
+# ratio of the mean probability inside recessions to outside them moves from 2.86
+# to 2.83. Every statistic quoted in the text is computed on the unsmoothed
+# series, so the window affects the picture and nothing else.
+#
+# The sample is split across two rows. On one row it occupies a single text
+# width, about nine months to a tenth of an inch, too dense to resolve episodes.
+#
+# The figure should be read honestly. The state is elevated through every dated
+# contraction, but it also fires outside them, exceeding one half in sixty-three
+# separate episodes against eighty-five recession months in total. What it
+# identifies is equity market stress, of which recessions are one source among
+# others.
 
 # %%
-SHADE = {"Bull": "1.0", "Reversal": "0.62", "Bear": "0.10"}
-
-fig = plt.figure(figsize=(7, 2.85))
-outer = fig.add_gridspec(2, 1, height_ratios=[1.25, 0.9], hspace=0.9)
-top = outer[0].subgridspec(2, 1, height_ratios=[1.0, 0.5], hspace=0.15)
-ax_ribbon = fig.add_subplot(top[0])
-ax_nber = fig.add_subplot(top[1])
-ax_event = fig.add_subplot(outer[1])
-
-# Month boundaries, so a one-month episode occupies exactly one month of the
-# axis rather than being centred on the observation date.
-starts = mdates.date2num(X.index.to_period("M").to_timestamp())
-month = np.append(np.diff(starts), 31.0)
+SMOOTH_MONTHS = 6
+SPLIT = pd.Timestamp("1994-06-30")
 
 
-def runs_of(mask):
-    """Contiguous (start, width) spans of a boolean month mask."""
-    spans, i = [], 0
-    m = np.asarray(mask)
+def recession_spans(mask):
+    """Contiguous (start, end) spans of a boolean monthly mask."""
+    out, i, m = [], 0, np.asarray(mask)
     while i < len(m):
         if m[i]:
             j = i
             while j + 1 < len(m) and m[j + 1]:
                 j += 1
-            spans.append((starts[i], starts[j] + month[j] - starts[i]))
+            out.append((mask.index[i], mask.index[j]))
             i = j + 1
         else:
             i += 1
-    return spans
+    return out
 
 
-# Bull is left as the background rather than shaded: it holds three quarters of
-# the sample, and drawing it would leave the two states of interest as marks on
-# a grey wash instead of on white.
-for name in ["Reversal", "Bear"]:
-    ax_ribbon.broken_barh(
-        runs_of((modal == name).values), (0, 1),
-        facecolor=SHADE[name], linewidth=0, antialiased=False,
-    )
-ax_ribbon.set_ylabel("Regime", rotation=0, ha="right", va="center", fontsize=8.5)
-ax_ribbon.legend(
-    handles=[Patch(facecolor=SHADE[n], edgecolor="0.35", lw=0.5, label=n)
-             for n in ["Bull", "Reversal", "Bear"]],
-    ncol=3, loc="lower right", bbox_to_anchor=(1, 1.06), frameon=False,
-    fontsize=8, handlelength=1.8, handleheight=0.9, columnspacing=1.6,
-)
+bear = probs["Bear"].rolling(SMOOTH_MONTHS, center=True).mean()
+fig, axes = plt.subplots(2, 1, figsize=(7, 3.2))
 
-ax_nber.broken_barh(
-    runs_of(recession.values), (0, 1),
-    facecolor="0.10", linewidth=0, antialiased=False,
-)
-ax_nber.set_ylabel("NBER", rotation=0, ha="right", va="center", fontsize=8.5)
+for ax, (lo, hi) in zip(axes, [(bear.index[0], SPLIT), (SPLIT, bear.index[-1])]):
+    for start, end in recession_spans(recession):
+        if end >= lo and start <= hi:
+            ax.axvspan(max(start, lo), min(end, hi), color="0.86", lw=0, zorder=0)
 
-for ax in [ax_ribbon, ax_nber]:
-    ax.set_xlim(starts[0], starts[-1] + month[-1])
-    ax.set_ylim(0, 1)
-    ax.set_yticks([])
-    ax.tick_params(left=False, bottom=False)
-    for side in ax.spines:
-        ax.spines[side].set_linewidth(0.5)
-        ax.spines[side].set_color("0.35")
+    window = (bear.index >= lo) & (bear.index <= hi)
+    ax.plot(bear.index[window], bear[window], color="0.05", lw=0.9, zorder=3)
 
-ax_ribbon.tick_params(labelbottom=False)
-ax_nber.xaxis.set_major_locator(mdates.YearLocator(10))
-ax_nber.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-ax_nber.tick_params(labelsize=8.5)
+    ax.set_xlim(lo, hi)
+    ax.set_ylim(-0.02, 1.02)
+    ax.set_yticks([0, 0.5, 1])
+    ax.set_ylabel(r"$P(\mathrm{Bear})$", fontsize=9)
+    ax.xaxis.set_major_locator(mdates.YearLocator(5))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.tick_params(bottom=False, left=False, labelsize=8.5)
+    for side in ["top", "right"]:
+        ax.spines[side].set_visible(False)
 
-mean_path = crash_window.mean(axis=1)
-se_path = crash_window.std(axis=1) / np.sqrt(crash_window.shape[1])
-
-ax_event.fill_between(crash_window.index, mean_path - se_path,
-                      mean_path + se_path, color="0.78", lw=0)
-ax_event.plot(crash_window.index, mean_path, color="0.10", lw=1.2)
-ax_event.axvline(0, color="0.45", lw=0.7, ls=(0, (3, 3)))
-ax_event.axhline(crash_uncond, color="0.45", lw=0.7, ls=(0, (1, 2)))
-ax_event.set_xlim(crash_window.index[0], crash_window.index[-1])
-ax_event.set_ylim(-0.02, 1.05)
-ax_event.set_xticks(range(-6, 7, 2))
-ax_event.set_xlabel("Months from crash", fontsize=8.5)
-ax_event.set_ylabel(r"$P(\mathrm{Reversal})$", fontsize=9)
-ax_event.tick_params(labelsize=8.5)
-for side in ["top", "right"]:
-    ax_event.spines[side].set_visible(False)
-
-fig.text(0.012, 0.985, r"\textbf{A.} Regimes and NBER recessions",
-         fontsize=9, va="top")
-fig.text(0.012, ax_event.get_position().y1 + 0.05,
-         r"\textbf{B.} Reversal probability around momentum crashes"
-         f" ($n={crash_window.shape[1]}$)", fontsize=9, va="bottom")
-
+plt.tight_layout()
 plt.savefig(f"{DataConstants.WDIR.value}/img/regime_timeline.pdf", dpi=300,
             transparent=True, bbox_inches="tight")
 plt.show()
