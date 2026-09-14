@@ -5,6 +5,30 @@ finished, because each one reflows the document or invalidates a reading pass.
 None of them is a referee response; they are the things that should be done once,
 at the end, in a single sweep.
 
+## Blocking: the Ledoit and Wolf numbers are not reproducible yet
+
+**This one changes reported numbers and must not be forgotten.**
+
+The bootstrap was unseeded when Table 4 was generated, so the rejection rates it
+reports cannot be reproduced by anyone re-running the code, including us.
+`core.inference` now seeds it per path, but the table has not been regenerated
+because doing so requires the full bootstrap, which takes hours.
+
+When it runs, **the rejection rates will change**, and every one of them quoted
+in the text has to be re-checked against the new table. As of this writing
+section 4.5 quotes:
+
+- $15.8\%$ of individual histories rejecting at the five per cent level
+- $19.8\%$ and $17.6\%$ at the two higher levels of risk aversion, via the table
+- the detection sequence $18.0$, $35.3$, $59.3$, $84.8$ and $100$ per cent,
+  which comes from `detection_by_horizon` and is also bootstrap-based
+
+Two tables are affected: `table3_significance.tex`, and `table6_detection_horizon.tex`
+if it is ever restored. Both are produced by `notebooks/statistical_validation.py`.
+
+The same run should pick up the panel relabelling described below, so that
+Tables 3 and 4 match the convention the other tables already use.
+
 ## Typography
 
 **Add `\usepackage[T1]{fontenc}`.** The document currently uses the OT1 default,
@@ -39,9 +63,17 @@ update `routines/sync_exhibits.py` and the generating notebooks together.
 a table can overtake a figure declared before it. Table 2 currently prints a page
 ahead of Figure 2 although the text introduces the figure first.
 
-**Narrow tables.** Table 8 is stretched to the text width with `full_width=True`.
-Tables 1 and 6 are narrower than the measure but have few enough columns that
-stretching them would leave visible gaps; left as they are deliberately.
+**Narrow tables.** The regime-conditional table is stretched to four fifths of
+the measure with `full_width=0.8`. Others are narrower than the measure but have
+few enough columns that stretching them would leave visible gaps; left as they
+are deliberately.
+
+**Panel labelling.** Divisions by risk aversion are now headed `$\varphi = 10$`
+rather than `Panel A: $\varphi = 10$`, so that `Panel A` and `Panel B` are free
+for the two halves of the merged mechanism table. `table2_performance.tex`,
+`table4_decomposition.tex` and `table5a_regime_conditional.tex` follow the new
+convention. `table3_significance.tex` does not, because regenerating it requires
+the bootstrap; it will be picked up by the run described above.
 
 ## Verification
 
