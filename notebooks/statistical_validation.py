@@ -36,8 +36,9 @@ from regimeaware.constants import DataConstants, SimulationParameters
 from regimeaware.core.exhibits import write_tabular
 from regimeaware.core.inference import (
     detection_by_horizon,
-    ledoit_wolf_path,
+    ledoit_wolf_batch,
     ledoit_wolf_summary,
+    path_seed,
     paired_comparison,
     rejection_summary,
     significance_table,
@@ -170,7 +171,7 @@ table2 = table2[[SHORT[a] for a in available_main]]
 
 write_tabular(
     table2,
-    f"{TABLES}/table2_performance.tex",
+    f"{TABLES}/performance.tex",
     panel_level="phi",
     # Six benchmarks leave the table narrower than the text block; stretching the
     # columns to fill it keeps the numbers from bunching together.
@@ -208,25 +209,31 @@ def net_panel(cost):
         for arm in available_main:
             w_phi = wts[arm].xs(phi, level="phi")
 
-            gross, net, lw_p = [], [], []
+            gross, net, pairs = [], [], []
             for i in common:
                 w_i = w_phi.xs(i, level="iteration")
                 gross.append(net_sharpe_curve(w_i, sec_rt[i], 0.0)[0])
                 net.append(net_sharpe_curve(w_i, sec_rt[i], cost)[0])
                 if arm != BENCHMARK:
-                    lw_p.append(
-                        ledoit_wolf_path(
-                            net_returns(w_i, sec_rt[i], cost),
-                            net_returns(b_phi.xs(i, level="iteration"), sec_rt[i], cost),
-                        )["p-value"]
-                    )
+                    pairs.append((
+                        net_returns(w_i, sec_rt[i], cost),
+                        net_returns(b_phi.xs(i, level="iteration"), sec_rt[i], cost),
+                    ))
+
+            # Seeded per path so the rejection rates reproduce, and run in
+            # parallel: five arms, three levels of risk aversion and a thousand
+            # paths is fifteen thousand bootstraps.
+            lw_p = [
+                r["p-value"]
+                for r in ledoit_wolf_batch(pairs, seeds=[path_seed(i) for i in common])
+            ] if pairs else []
 
             paired = paired_comparison(
                 metrics[arm].xs(phi)["Sharpe Ratio"],
                 metrics[BENCHMARK].xs(phi)["Sharpe Ratio"],
             )
 
-            rows[(phi, LABELS[arm])] = {
+            rows[(phi, SHORT[arm])] = {
                 "Sharpe (gross)": np.nanmean(gross),
                 "Sharpe (net)": np.nanmean(net),
                 "Cost drag": np.nanmean(gross) - np.nanmean(net),
@@ -254,12 +261,14 @@ if realised_one_way is not None:
                         "t-stat", "p (paired t)", "LW reject 5\\%"]],
             names=["phi", "metric"],
         ),
-        columns=[LABELS[a] for a in available_main],
+        # The same abbreviated headings as the performance table, so the two
+        # read as one comparison.
+        columns=[SHORT[a] for a in available_main],
     )
 
     write_tabular(
         table3_tex,
-        f"{TABLES}/table3_significance.tex",
+        f"{TABLES}/significance.tex",
         panel_level="phi",
         notes=[
             f"Costs charged at {realised_one_way*100:.4f}% per unit of two-sided turnover.",
@@ -322,7 +331,7 @@ horizon = detection_by_horizon(
 )
 write_tabular(
     horizon[["Years", "Detection rate"]],
-    f"{TABLES}/table6_detection_horizon.tex",
+    f"{TABLES}/detection_horizon.tex",
     formats={"Years": "num1", "Detection rate": "pct1"},
     format_axis="columns",
     index_header="Months",

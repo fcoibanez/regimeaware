@@ -208,7 +208,7 @@ table4.index.names = ["phi", "step"]
 
 write_tabular(
     table4,
-    f"{DataConstants.WDIR.value}/tables/table4_decomposition.tex",
+    f"{DataConstants.WDIR.value}/tables/decomposition.tex",
     panel_level="phi",
     # Quantities vary across the columns here rather than down the rows, and the
     # increments are small enough relative to their standard errors that two

@@ -263,7 +263,7 @@ print(crash_table.round(4).to_string())
 
 write_tabular(
     crash_table,
-    f"{DataConstants.WDIR.value}/tables/table_momentum_crashes.tex",
+    f"{DataConstants.WDIR.value}/tables/momentum_crashes.tex",
     formats={"$UMD$": "pct2", "$Mkt-Rf$": "pct2", "P(Bull)": "num3",
              "P(Reversal)": "num3", "P(Bear)": "num3"},
     format_axis="columns",

@@ -315,7 +315,7 @@ if forecast is not None:
 
     write_tabular(
         table5a,
-        f"{DataConstants.WDIR.value}/tables/table5a_regime_conditional.tex",
+        f"{DataConstants.WDIR.value}/tables/regime_conditional.tex",
         panel_level="phi",
         full_width=PANEL_WIDTH,
         title="Panel A: Performance by the regime governing each period",
@@ -365,7 +365,7 @@ if forecast is not None:
                        "Brier skill"]
     write_tabular(
         panel_b,
-        f"{DataConstants.WDIR.value}/tables/table5b_forecast_quality.tex",
+        f"{DataConstants.WDIR.value}/tables/forecast_quality.tex",
         formats={c: "num3" for c in panel_b.columns},
         format_axis="columns",
         full_width=PANEL_WIDTH,

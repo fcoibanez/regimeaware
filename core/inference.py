@@ -17,6 +17,7 @@ only the second overstates what an investor could verify from a single history.
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy import stats
 
 from regimeaware.modules.robustsharpe import robustsharpe as rs
@@ -113,7 +114,7 @@ BOOTSTRAP_DRAWS = 499
 BOOTSTRAP_SEED = 20261211
 
 
-def _seed_for(identifier):
+def path_seed(identifier):
     """Deterministic per-path seed."""
     try:
         return BOOTSTRAP_SEED + int(identifier)
@@ -168,8 +169,33 @@ def ledoit_wolf_path(returns_a, returns_b, alpha=0.05, method="bootstrap",
     }
 
 
-def ledoit_wolf_summary(returns_a, returns_b, paths, alpha=0.05, bootstrap=False,
-                        block_size=6, draws=499):
+def ledoit_wolf_batch(pairs, seeds=None, alpha=0.05, block_size=BOOTSTRAP_BLOCK,
+                      draws=BOOTSTRAP_DRAWS, n_jobs=-1):
+    """``ledoit_wolf_path`` over many pairs at once, in parallel.
+
+    The bootstrap is a Python loop over resamples, so one test takes a quarter of
+    a second at T = 60, and the set the manuscript reports -- five arms, three
+    levels of risk aversion, a thousand paths -- takes hours in series. The tests
+    are independent, so they are spread across processes.
+
+    :param pairs: iterable of ``(returns_a, returns_b)``.
+    :param seeds: one seed per pair. Defaults to the path-derived seed of each
+        pair's position, which is right only when ``pairs`` is in path order.
+    :return: list of ``ledoit_wolf_path`` results, in the order of ``pairs``.
+    """
+    pairs = list(pairs)
+    if seeds is None:
+        seeds = [path_seed(i) for i in range(len(pairs))]
+    return Parallel(n_jobs=n_jobs)(
+        delayed(ledoit_wolf_path)(
+            a, b, alpha=alpha, block_size=block_size, draws=draws, seed=s
+        )
+        for (a, b), s in zip(pairs, seeds)
+    )
+
+
+def ledoit_wolf_summary(returns_a, returns_b, paths, alpha=0.05,
+                        block_size=BOOTSTRAP_BLOCK, draws=BOOTSTRAP_DRAWS):
     """Ledoit and Wolf test applied path by path, then summarised.
 
     With T = 60 the test has little power on any single path, so the informative
@@ -180,32 +206,15 @@ def ledoit_wolf_summary(returns_a, returns_b, paths, alpha=0.05, bootstrap=False
     :param returns_a: DataFrame of treatment returns indexed by (phi, path).
     :param returns_b: DataFrame of control returns, same index.
     :param paths: iterable of path identifiers to evaluate.
-    :param bootstrap: use the circular block bootstrap instead of the HAC
-        standard error. Slower, but better behaved in small samples.
     :return: DataFrame with one row per path.
     """
-    rows = {}
-    for i in paths:
-        a = returns_a.loc[i].dropna()
-        b = returns_b.loc[i].dropna()
-
-        if bootstrap:
-            pair = np.column_stack([b.values, a.values])
-            sr, sr_diff, ci, p_val, se = rs.bootstrap_inference(
-                pair, block_size=block_size, alpha=alpha, M=draws,
-                seed=_seed_for(i),
-            )
-            rows[i] = {
-                "SR (control)": sr[0],
-                "SR (treatment)": sr[1],
-                "SR difference": sr_diff,
-                "Std. Err.": se,
-                "p-value": p_val,
-                "CI low": ci[0],
-                "CI high": ci[1],
-            }
-        else:
-            rows[i] = ledoit_wolf_path(a, b, alpha=alpha, seed=_seed_for(i))
+    paths = list(paths)
+    results = ledoit_wolf_batch(
+        [(returns_a.loc[i].dropna(), returns_b.loc[i].dropna()) for i in paths],
+        seeds=[path_seed(i) for i in paths],
+        alpha=alpha, block_size=block_size, draws=draws,
+    )
+    rows = dict(zip(paths, results))
 
     out = pd.DataFrame.from_dict(rows, orient="index")
     out.index.name = "iteration"
@@ -234,23 +243,32 @@ def detection_by_horizon(returns_a, returns_b, paths, horizons, alpha=0.05,
     a = [np.asarray(returns_a.loc[i].dropna(), float) for i in paths]
     b = [np.asarray(returns_b.loc[i].dropna(), float) for i in paths]
 
-    rows = {}
+    # Every history at every horizon is an independent test, so all of them are
+    # collected first and run as one parallel batch.
+    jobs = []
     for k in horizons:
         n = min(max_histories, len(a) // k)
         if n < 2:
             continue
-
-        rejected = []
         for j in range(n):
             block = slice(j * k, (j + 1) * k)
-            pair = np.column_stack(
-                [np.concatenate(b[block]), np.concatenate(a[block])]
-            )
-            _, _, _, p_val, _ = rs.bootstrap_inference(
-                pair, block_size=block_size, alpha=alpha, M=draws,
-                seed=BOOTSTRAP_SEED + 1000 * k + j,
-            )
-            rejected.append(p_val < alpha)
+            jobs.append((k, j, np.concatenate(a[block]), np.concatenate(b[block])))
+
+    results = ledoit_wolf_batch(
+        [(ha, hb) for _, _, ha, hb in jobs],
+        seeds=[BOOTSTRAP_SEED + 1000 * k + j for k, j, _, _ in jobs],
+        alpha=alpha, block_size=block_size, draws=draws,
+    )
+
+    rows = {}
+    for k in horizons:
+        rejected = [
+            r["p-value"] < alpha
+            for (kk, _, _, _), r in zip(jobs, results) if kk == k
+        ]
+        n = len(rejected)
+        if n < 2:
+            continue
 
         months = k * len(a[0])
         rows[months] = {

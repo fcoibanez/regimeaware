@@ -48,15 +48,16 @@ FIGURES = [
     "ablation_ecdf.pdf",
 ]
 
+# Named for what they hold rather than numbered: the manuscript numbers its
+# tables by position, and a file called table4 that prints as Table 7 is worse
+# than one with no number at all.
 TABLES = [
-    "table_state_selection.tex",   # Table 1: choice of the number of regimes
-    "table_momentum_crashes.tex",
-    "table2_performance.tex",
-    "table3_significance.tex",
-    "table4_decomposition.tex",
-    "table5a_regime_conditional.tex",
-    "table5b_forecast_quality.tex",
-    "table6_detection_horizon.tex",
+    "momentum_crashes.tex",
+    "performance.tex",
+    "significance.tex",
+    "decomposition.tex",
+    "regime_conditional.tex",
+    "forecast_quality.tex",
 ]
 
 

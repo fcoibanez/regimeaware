@@ -196,7 +196,7 @@ print(selection.round(1).to_string())
 
 write_tabular(
     selection,
-    f"{DataConstants.WDIR.value}/tables/table_state_selection.tex",
+    f"{DataConstants.WDIR.value}/tables/state_selection.tex",
     formats={c: "int" for c in criteria}
     | {r"$\Delta$BIC, three vs two": "num1"},
     format_axis="columns",
