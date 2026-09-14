@@ -15,6 +15,7 @@ class DataConstants(Enum):
 
     WDIR = "D:/bin/regimeaware"
     WRDS_USERNAME = "fcoibanez"
+    MANUSCRIPT_DIR = "D:/bin/HMM"  # Overleaf project holding the EJOR manuscript
 
 
 class SimulationParameters(Enum):
