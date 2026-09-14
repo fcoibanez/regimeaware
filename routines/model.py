@@ -1,139 +1,153 @@
+"""Backtest of the regime-aware framework: HMM regime identification with RWLS.
+
+Constructs the portfolio of equation (10) over the Monte Carlo simulation paths,
+maximizing expected exponential utility over the full Gaussian mixture of
+regime-conditional return distributions.
+
+The regime model can be supplied in two ways, selected with ``--regimes``:
+
+    estimated   the HMM is fitted at every decision date on the observations
+                available up to that date. This is the implementable variant and
+                shares its information set with the regime-agnostic benchmark.
+    oracle      the HMM parameters of the data-generating process are supplied
+                directly. This is not implementable, but bounds what the
+                framework could deliver if regime identification were perfect,
+                so the gap between the two isolates how much of the
+                outperformance comes from identifying regimes rather than from
+                projecting them into asset space.
+
+Based on the empirical section of "Incorporating Market Regimes into Large-Scale
+Stock Portfolios: A Hidden Markov Model Approach".
 """
-Backtesting script for regime-aware portfolio optimization using HMM and RWLS.
 
-Implements Monte Carlo simulations (5,000 trials) to evaluate out-of-sample performance
-of RWLS framework against regime-agnostic baselines. Manages 200-stock portfolios across
-risk aversion levels (φ=1-50), using CVXPY for optimization.
+import argparse
+import random
 
-Based on empirical section of "Regime-Aware Portfolio Optimization...".
-Results show improved returns and diversification.
-"""
-
-import cvxpy as cvx
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from tqdm import tqdm
-import random
-import argparse
-from regimeaware.constants import DataConstants, HMMParameters, SimulationParameters
+
+from regimeaware.constants import (
+    CK_WINDOW,
+    DataConstants,
+    Factors,
+    HMMParameters,
+    SimulationParameters,
+)
+from regimeaware.core.estimation import (
+    factor_moments,
+    fit_regimes,
+    forecast_probs,
+    guard_weights,
+    regime_weights,
+)
+from regimeaware.core.moments import fit_wls, project
+from regimeaware.core.simdata import load_simulation
+from regimeaware.core.optimize import solve_portfolio
 
 if __name__ == "__main__":
-    # Add arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--shuffle", default=False, type=bool)
+    parser.add_argument("--regimes", choices=["estimated", "oracle"], default="estimated")
+    parser.add_argument("--states", default=HMMParameters.STATES.value, type=int)
+    parser.add_argument("--trials", default=SimulationParameters.TRIALS.value, type=int)
+    parser.add_argument("--shuffle", action="store_true")
+    parser.add_argument(
+        "--shard",
+        default="0/1",
+        help="Process only iterations i with i %% n == k, given as 'k/n'.",
+    )
     args = parser.parse_args()
 
-    iterations = list(range(SimulationParameters.TRIALS.value))
+    shard_k, shard_n = (int(x) for x in args.shard.split("/"))
+
+    n_assets = SimulationParameters.NUM_STOCKS.value
+    n_states = args.states
+    is_periods = SimulationParameters.IS_PERIODS.value
+    phis = SimulationParameters.RISK_AVERSION.value
+    factors = Factors._member_names_
+
+    # results/model holds the output of the original pipeline and is left
+    # untouched: it is the record of the submitted draft's numbers, needed to
+    # account for what changed between rounds.
+    outdir = f"{DataConstants.WDIR.value}/results/model_{args.regimes}"
+
+    iterations = [i for i in range(args.trials) if i % shard_n == shard_k]
     random.shuffle(iterations) if args.shuffle else None
-    mdl_hmm = pd.read_pickle(f"{DataConstants.WDIR.value}/data/dist/mdl_hmm.pkl")
 
-    sec_rt = pd.read_pickle(f"{DataConstants.WDIR.value}/data/sim/sec_rt.pkl")
-    fctr_rt = pd.read_pickle(f"{DataConstants.WDIR.value}/data/sim/fctr_rt.pkl")
-    post_probs = pd.read_pickle(f"{DataConstants.WDIR.value}/data/sim/probs.pkl")
+    sec_rt, fctr_rt = load_simulation(args.trials, n_assets, DataConstants.WDIR.value)
 
-    Mt = mdl_hmm.means_
-    St = mdl_hmm.covars_
+    # The data-generating parameters, used only by the oracle variant
+    dgp = pd.read_pickle(f"{DataConstants.WDIR.value}/data/dist/mdl_hmm.pkl")
 
-    for phi in SimulationParameters.RISK_AVERSION.value:
-        for i in iterations:
-            fname = f"{DataConstants.WDIR.value}/results/model/phi{phi}_iter{i}.pkl"
-            try:
-                wts_iter = pd.read_pickle(fname)
-                continue
-            except FileNotFoundError:
-                pass
+    for i in iterations:
+        fnames = {phi: f"{outdir}/phi{phi}_iter{i}.pkl" for phi in phis}
+        try:
+            for fname in fnames.values():
+                pd.read_pickle(fname)
+            continue
+        except FileNotFoundError:
+            pass
 
-            collect_wts = {}
+        collect_wts = {phi: {} for phi in phis}
+        warm_from = None
 
-            for t in tqdm(
-                range(SimulationParameters.OOS_PERIODS.value),
-                desc=f"Risk aversion φ={phi} (iteration {i})",
-            ):
-                # Data available as of t
-                Gt = post_probs[i].loc[: SimulationParameters.IS_PERIODS.value + t]
-                Xt = fctr_rt[i].loc[: SimulationParameters.IS_PERIODS.value + t]
-                Yt = sec_rt[i].loc[: SimulationParameters.IS_PERIODS.value + t]
+        for t in tqdm(
+            range(SimulationParameters.OOS_PERIODS.value),
+            desc=f"model[{args.regimes}] (iteration {i})",
+        ):
+            # Data available as of t
+            Xt = fctr_rt[i].loc[: is_periods + t]
+            Yt = sec_rt[i].loc[: is_periods + t].iloc[:, :n_assets]
 
-                Vt = {}
-                Rt = {}
+            if args.regimes == "oracle":
+                # Posteriors under the true parameters, but still computed only
+                # on observations up to t so that the last row is the filtered
+                # probability rather than a full-sample smoothed one.
+                probs = dgp.predict_proba(Xt[factors].values)
+                transmat = dgp.transmat_
+            else:
+                mdl_hmm, probs = fit_regimes(Xt[factors].values, n_states, warm_from)
+                warm_from = mdl_hmm
+                transmat = mdl_hmm.transmat_
 
-                # RWLS
-                for s in range(HMMParameters.STATES.value):
-                    g = Gt[s]  # Posterior probabilities
-                    B_s = np.zeros(
-                        shape=(SimulationParameters.NUM_STOCKS.value, Xt.shape[1] + 1)
-                    )
-                    E_s = np.zeros(
-                        shape=(
-                            SimulationParameters.NUM_STOCKS.value,
-                            SimulationParameters.NUM_STOCKS.value,
-                        )
-                    )
+            pi_t = forecast_probs(probs, transmat)
 
-                    x = sm.add_constant(Xt)  # Exog
-                    for j in range(SimulationParameters.NUM_STOCKS.value):
-                        y = Yt[j]  # Endog
+            # Regime-conditional asset moments
+            design = np.column_stack([np.ones(len(Xt)), Xt.values])
+            weights = regime_weights(probs, "rwls", window=None)
 
-                        # Regimes-weighted least squares
-                        mdl = sm.WLS(y, x, weights=g, hasconst=True).fit()
-                        B_s[j] = mdl.params
-                        E_s[j, j] = np.var(mdl.resid)
+            means, covs = [], []
+            for s in range(probs.shape[1]):
+                w = guard_weights(weights[s], design.shape[1], CK_WINDOW)
 
-                    V_st = (
-                        B_s[:, 1:] @ St[s] @ B_s[:, 1:].T + E_s
-                    )  # Stock-level covariance matrix
-                    Vt[s] = (
-                        V_st + V_st.conj().T / 2
-                    )  # Make sure it is a Hermitian symmetric matrix.
-                    Rt[s] = (
-                        B_s @ np.concatenate([np.array([1]), Mt[s]]).reshape(-1, 1)
-                    ).flatten()  # Stock-level returns vector
+                # Regime-weighted least squares. The residual variance is
+                # weighted by the same posteriors as the regression itself,
+                # which is what the model's sigma^2_{i,s} actually is.
+                coefs, resid_var = fit_wls(design, Yt.values, weights=w)
 
-                P = mdl_hmm.transmat_
-                pi_t = Gt.iloc[-1] @ P
+                if args.regimes == "oracle":
+                    lambda_s = dgp.means_[s]
+                    omega_s = dgp.covars_[s]
+                else:
+                    lambda_s, omega_s = factor_moments(Xt.values, w)
 
-                # Portfolio optimization (Regime-aware)
+                mu_s, V_s = project(coefs, resid_var, lambda_s, omega_s)
+                means.append(mu_s)
+                covs.append(V_s)
+
+            # The moments do not depend on risk aversion, so they are built once
+            # and reused across the whole grid of phi.
+            for phi in phis:
                 try:
-
-                    def K(w):
-                        """
-                        Objective function for regime-aware portfolio optimization (eq. 11).
-
-                        Computes expected log-utility across regimes, weighted by pi_t.
-
-                        Args:
-                            w: Portfolio weights (cvx.Variable).
-
-                        Returns:
-                            Log-sum-exp of regime utilities (cvx.Expression).
-                        """
-                        u = cvx.vstack(
-                            [
-                                cvx.log(pi_t[i])
-                                - phi * Rt[i] @ w
-                                + (phi**2 / 2) * cvx.quad_form(w, Vt[i])
-                                for i in range(len(pi_t))
-                            ]
-                        )
-                        return cvx.log_sum_exp(u)
-
-                    w = cvx.Variable(SimulationParameters.NUM_STOCKS.value)
-                    objective = cvx.Minimize(K(w))
-                    constraints = [w >= 0, cvx.sum(w) == 1]
-                    egm_prob = cvx.Problem(objective, constraints)
-                    egm_prob.solve(solver="MOSEK")
-                    collect_wts[SimulationParameters.IS_PERIODS.value + t] = w.value
-
+                    w_opt = solve_portfolio(phi, pi_t, means, covs, n_assets)
                 except Exception as e:
-                    print(f"Optimization failed: {e}")
-                    collect_wts[SimulationParameters.IS_PERIODS.value + t] = np.array(
-                        [np.nan] * SimulationParameters.NUM_STOCKS.value
-                    )
-                    continue
+                    print(f"Optimization failed (phi={phi}, t={t}): {e}")
+                    w_opt = np.array([np.nan] * n_assets)
+                collect_wts[phi][is_periods + t] = w_opt
 
-            wts_iter = pd.DataFrame.from_dict(collect_wts, orient="index")
+        for phi in phis:
+            wts_iter = pd.DataFrame.from_dict(collect_wts[phi], orient="index")
             wts_iter.index = pd.MultiIndex.from_product(
                 [[i], wts_iter.index], names=["iteration", "period"]
             )
-            wts_iter.to_pickle(fname)
+            wts_iter.to_pickle(fnames[phi])

@@ -1,123 +1,94 @@
-"""
-Backtesting script for baseline portfolio optimization.
+"""Backtest of the regime-agnostic benchmark.
 
-Implements Monte Carlo simulations (5,000 trials) to evaluate out-of-sample performance
-of regime-agnostic baseline approach. Manages 200-stock portfolios
+Deliberately ignores latent state dynamics: factor loadings and factor moments
+are estimated unconditionally over the full history available at each decision
+date, which by construction averages across periods of high and low volatility.
+
+The factor covariance is left unrestricted here, whereas the regime-aware
+framework restricts its state-dependent factor covariances to be diagonal. That
+asymmetry favours this benchmark, so the comparison remains conservative.
 """
 
-import cvxpy as cvx
+import argparse
+import random
+
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from tqdm import tqdm
-import random
-import argparse
-from regimeaware.constants import DataConstants, HMMParameters, SimulationParameters
+
+from regimeaware.constants import DataConstants, SimulationParameters
+from regimeaware.core.moments import fit_wls, project
+from regimeaware.core.optimize import solve_portfolio
+from regimeaware.core.simdata import load_simulation
 
 if __name__ == "__main__":
-    # Add arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--shuffle", default=False, type=bool)
+    parser.add_argument("--trials", default=SimulationParameters.TRIALS.value, type=int)
+    parser.add_argument("--shuffle", action="store_true")
+    parser.add_argument(
+        "--shard",
+        default="0/1",
+        help="Process only iterations i with i %% n == k, given as 'k/n'.",
+    )
     args = parser.parse_args()
 
-    iterations = list(range(SimulationParameters.TRIALS.value))
+    shard_k, shard_n = (int(x) for x in args.shard.split("/"))
+
+    n_assets = SimulationParameters.NUM_STOCKS.value
+    is_periods = SimulationParameters.IS_PERIODS.value
+    phis = SimulationParameters.RISK_AVERSION.value
+
+    outdir = f"{DataConstants.WDIR.value}/results/baseline"
+
+    iterations = [i for i in range(args.trials) if i % shard_n == shard_k]
     random.shuffle(iterations) if args.shuffle else None
 
-    sec_rt = pd.read_pickle(f"{DataConstants.WDIR.value}/data/sim/sec_rt.pkl")
-    fctr_rt = pd.read_pickle(f"{DataConstants.WDIR.value}/data/sim/fctr_rt.pkl")
+    sec_rt, fctr_rt = load_simulation(args.trials, n_assets, DataConstants.WDIR.value)
 
-    for phi in SimulationParameters.RISK_AVERSION.value:
-        for i in iterations:
-            fname = f"{DataConstants.WDIR.value}/results/baseline/phi{phi}_iter{i}.pkl"
-            # try:
-            #     wts_iter = pd.read_pickle(fname)
-            #     continue
-            # except FileNotFoundError:
-            #     pass
+    for i in iterations:
+        fnames = {phi: f"{outdir}/phi{phi}_iter{i}.pkl" for phi in phis}
+        try:
+            for fname in fnames.values():
+                pd.read_pickle(fname)
+            continue
+        except FileNotFoundError:
+            pass
 
-            collect_wts = {}
+        collect_wts = {phi: {} for phi in phis}
 
-            for t in tqdm(
-                range(SimulationParameters.OOS_PERIODS.value),
-                desc=f"Risk aversion φ={phi} (iteration {i})",
-            ):
-                # Data available as of t
-                Xt = fctr_rt[i].loc[: SimulationParameters.IS_PERIODS.value + t]
-                Yt = sec_rt[i].loc[: SimulationParameters.IS_PERIODS.value + t]
+        for t in tqdm(
+            range(SimulationParameters.OOS_PERIODS.value),
+            desc=f"baseline (iteration {i})",
+        ):
+            # Data available as of t
+            Xt = fctr_rt[i].loc[: is_periods + t]
+            Yt = sec_rt[i].loc[: is_periods + t].iloc[:, :n_assets]
 
-                Vt = {}
-                Rt = {}
+            design = np.column_stack([np.ones(len(Xt)), Xt.values])
+            coefs, resid_var = fit_wls(design, Yt.values)
 
-                # Single-regime benchmark
-                B = np.zeros(
-                    shape=(SimulationParameters.NUM_STOCKS.value, Xt.shape[1] + 1)
-                )
-                E = np.zeros(
-                    shape=(
-                        SimulationParameters.NUM_STOCKS.value,
-                        SimulationParameters.NUM_STOCKS.value,
-                    )
-                )
+            mu, V = project(
+                coefs,
+                resid_var,
+                Xt.values.mean(axis=0),
+                np.cov(Xt.values, rowvar=False),
+            )
 
-                for j in range(SimulationParameters.NUM_STOCKS.value):
-                    y = Yt[j]  # Endog
-                    x = sm.add_constant(Xt)  # Exog
-                    mdl_ols = sm.OLS(endog=y, exog=x, hasconst=True).fit()
-
-                    B[j] = mdl_ols.params
-                    E[j, j] = np.var(mdl_ols.resid)
-
-                Mt = np.mean(x, axis=0).values.reshape(-1, 1)
-                St = np.cov(x, rowvar=False)
-
-                Vt = B @ St @ B.T + E  # Stock-level covariance matrix
-                Vt = [
-                    Vt + Vt.conj().T / 2
-                ]  # Make sure it is a Hermitian symmetric matrix.
-                Rt = [(B @ Mt).flatten()]  # Stock-level returns vector
-                pi_t = [1]
-
-                # Portfolio optimization (Regime-aware)
+            # A single component reduces the objective to mean-variance with
+            # risk aversion phi. The moments do not depend on phi, so they are
+            # built once and reused across the grid.
+            probs = np.array([1.0])
+            for phi in phis:
                 try:
-
-                    def K(w):
-                        """
-                        Objective function for regime-aware portfolio optimization (eq. 11).
-
-                        Computes expected log-utility across regimes, weighted by pi_t.
-
-                        Args:
-                            w: Portfolio weights (cvx.Variable).
-
-                        Returns:
-                            Log-sum-exp of regime utilities (cvx.Expression).
-                        """
-                        u = cvx.vstack(
-                            [
-                                cvx.log(pi_t[i])
-                                - phi * Rt[i] @ w
-                                + (phi**2 / 2) * cvx.quad_form(w, Vt[i])
-                                for i in range(len(pi_t))
-                            ]
-                        )
-                        return cvx.log_sum_exp(u)
-
-                    w = cvx.Variable(SimulationParameters.NUM_STOCKS.value)
-                    objective = cvx.Minimize(K(w))
-                    constraints = [w >= 0, cvx.sum(w) == 1]
-                    egm_prob = cvx.Problem(objective, constraints)
-                    egm_prob.solve(solver="MOSEK")
-                    collect_wts[SimulationParameters.IS_PERIODS.value + t] = w.value
-
+                    w_opt = solve_portfolio(phi, probs, [mu], [V], n_assets)
                 except Exception as e:
-                    print(f"Optimization failed: {e}")
-                    collect_wts[SimulationParameters.IS_PERIODS.value + t] = np.array(
-                        [np.nan] * SimulationParameters.NUM_STOCKS.value
-                    )
-                    continue
+                    print(f"Optimization failed (phi={phi}, t={t}): {e}")
+                    w_opt = np.array([np.nan] * n_assets)
+                collect_wts[phi][is_periods + t] = w_opt
 
-            wts_iter = pd.DataFrame.from_dict(collect_wts, orient="index")
+        for phi in phis:
+            wts_iter = pd.DataFrame.from_dict(collect_wts[phi], orient="index")
             wts_iter.index = pd.MultiIndex.from_product(
                 [[i], wts_iter.index], names=["iteration", "period"]
             )
-            wts_iter.to_pickle(fname)
+            wts_iter.to_pickle(fnames[phi])

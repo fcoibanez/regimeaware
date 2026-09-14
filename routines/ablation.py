@@ -21,22 +21,29 @@ through the quality of the regime classification.
 """
 
 import argparse
+import os
 import random
 
-import cvxpy as cvx
 import numpy as np
 import pandas as pd
-from hmmlearn.hmm import GaussianHMM
 from tqdm import tqdm
 
 from regimeaware.constants import (
     CK_WINDOW,
     DataConstants,
-    Factors,
     HMMParameters,
     SimulationParameters,
 )
-from regimeaware.core.moments import collapse, fit_wls, project, symmetrize
+from regimeaware.core.estimation import (
+    EMISSIONS,
+    factor_moments,
+    fit_regimes,
+    forecast_probs,
+    guard_weights,
+    regime_weights,
+)
+from regimeaware.core.moments import collapse, fit_wls, project
+from regimeaware.core.optimize import solve_portfolio
 from regimeaware.core.simdata import load_simulation
 
 ARMS = {
@@ -45,116 +52,6 @@ ARMS = {
     "rwls_mvo": dict(emission="multi", loadings="rwls", objective="mvo"),
     "rwls_mixture": dict(emission="multi", loadings="rwls", objective="mixture"),
 }
-
-EMISSIONS = {"uni": ["mktrf"], "multi": Factors._member_names_}
-
-
-def build_hmm(n_states, warm_from=None):
-    """Instantiate the HMM, warm-starting from the previous fit when available.
-
-    Warm-starting keeps the per-period refit cheap and, as a side effect, holds
-    the state labels stable across decision dates within a simulation path.
-
-    The initial state distribution is held uniform and excluded from the update.
-    Estimated from a single sequence it is not identified -- it collapses onto
-    whichever state the path happens to start in -- and warm-starting from a
-    vector containing exact zeros makes the forward pass degenerate as soon as
-    the extended sample favours a different initial state. With T in the
-    hundreds it has no material effect on the likelihood.
-    """
-    kwargs = dict(
-        n_components=n_states,
-        covariance_type=HMMParameters.COV.value,
-        n_iter=HMMParameters.ITER.value,
-        min_covar=HMMParameters.MINCOV.value,
-        tol=HMMParameters.TOL.value,
-        implementation=HMMParameters.IMPLEMENTATION.value,
-    )
-    if warm_from is None:
-        mdl = GaussianHMM(
-            random_state=HMMParameters.SEED.value,
-            init_params="tmc",
-            params="tmc",
-            **kwargs,
-        )
-        mdl.startprob_ = np.full(n_states, 1 / n_states)
-        return mdl
-
-    transmat = np.clip(warm_from.transmat_, 1e-8, None)
-
-    mdl = GaussianHMM(init_params="", params="tmc", **kwargs)
-    mdl.startprob_ = np.full(n_states, 1 / n_states)
-    mdl.transmat_ = transmat / transmat.sum(axis=1, keepdims=True)
-    mdl.means_ = warm_from.means_
-    mdl.covars_ = np.diagonal(warm_from.covars_, axis1=1, axis2=2).copy()
-    return mdl
-
-
-def is_healthy(mdl):
-    """True when every estimated parameter is finite and properly normalised."""
-    params = [mdl.startprob_, mdl.transmat_, mdl.means_, mdl.covars_]
-    return all(np.all(np.isfinite(p)) for p in params) and np.allclose(
-        mdl.transmat_.sum(axis=1), 1.0
-    )
-
-
-def regime_weights(probs, loadings, window):
-    """Observation weights defining each regime's estimation sample.
-
-    Hard classification assigns every observation to its most likely state and
-    keeps the most recent ``window`` of them, discarding the rest. Soft
-    assignment keeps every observation and weights it by its posterior
-    probability. With two states the hard rule coincides with the 0.5 threshold
-    used by Costa & Kwon (2020).
-    """
-    n_obs, n_states = probs.shape
-
-    if loadings == "rwls":
-        return [probs[:, s] for s in range(n_states)]
-
-    labels = probs.argmax(axis=1)
-    weights = []
-    for s in range(n_states):
-        w = np.zeros(n_obs)
-        idx = np.flatnonzero(labels == s)[-window:]
-        w[idx] = 1.0
-        weights.append(w)
-    return weights
-
-
-def factor_moments(X, w, diagonal=True):
-    """Regime-conditional factor mean and covariance under weighting ``w``.
-
-    For soft assignment this reproduces the M-step estimates of the HMM; for
-    hard assignment it is the sample moment over the classified window. The
-    covariance is restricted to be diagonal, consistent with the treatment of
-    the state-dependent factor covariances elsewhere in the paper.
-    """
-    total = w.sum()
-    mean = (w[:, None] * X).sum(axis=0) / total
-    dev = X - mean
-    cov = (w[:, None] * dev).T @ dev / total
-    return mean, np.diag(np.diag(cov)) if diagonal else symmetrize(cov)
-
-
-def solve_portfolio(phi, probs, means, covs, n_assets):
-    """Long-only allocation maximizing expected exponential utility.
-
-    Minimizes the cumulant generating function of equation (10). A single
-    component reduces this to mean-variance optimization with risk aversion
-    ``phi``, which is the objective used by the collapsed-moment arms.
-    """
-    w_var = cvx.Variable(n_assets)
-    terms = [
-        np.log(probs[s])
-        - phi * means[s] @ w_var
-        + (phi**2 / 2) * cvx.quad_form(w_var, covs[s])
-        for s in range(len(probs))
-    ]
-    objective = cvx.Minimize(cvx.log_sum_exp(cvx.vstack(terms)))
-    constraints = [w_var >= 0, cvx.sum(w_var) == 1]
-    cvx.Problem(objective, constraints).solve(solver="MOSEK")
-    return w_var.value
 
 
 if __name__ == "__main__":
@@ -181,7 +78,12 @@ if __name__ == "__main__":
     is_periods = SimulationParameters.IS_PERIODS.value
     phis = SimulationParameters.RISK_AVERSION.value
 
-    outdir = f"{DataConstants.WDIR.value}/results/{args.arm}"
+    # A non-default state count is written alongside the main result rather than
+    # over it, so the faithful two-state replication of Costa & Kwon (2020) and
+    # the three-state arm used for the incremental comparison can coexist.
+    suffix = "" if n_states == HMMParameters.STATES.value else f"_{n_states}s"
+    outdir = f"{DataConstants.WDIR.value}/results/{args.arm}{suffix}"
+    os.makedirs(outdir, exist_ok=True)
 
     iterations = [i for i in range(args.trials) if i % shard_n == shard_k]
     random.shuffle(iterations) if args.shuffle else None
@@ -210,27 +112,10 @@ if __name__ == "__main__":
             Xt = fctr_rt[i].loc[: is_periods + t]
             Yt = sec_rt[i].loc[: is_periods + t].iloc[:, :n_assets]
 
-            # Regime identification on the information set available at t. The
-            # last row of the posterior is the filtered probability, since the
-            # backward pass contributes nothing at the end of the sample.
-            mdl_hmm = build_hmm(n_states, warm_from)
-            mdl_hmm.fit(Xt[emission].values)
-
-            if not is_healthy(mdl_hmm):
-                # The warm start led into a degenerate region; discard it and
-                # refit from the k-means initialisation instead.
-                mdl_hmm = build_hmm(n_states, None)
-                mdl_hmm.fit(Xt[emission].values)
-                if not is_healthy(mdl_hmm):
-                    raise RuntimeError(
-                        f"HMM failed to converge at iteration {i}, period {t}"
-                    )
-
+            # Regime identification on the information set available at t
+            mdl_hmm, probs = fit_regimes(Xt[emission].values, n_states, warm_from)
             warm_from = mdl_hmm
-
-            probs = mdl_hmm.predict_proba(Xt[emission].values)
-            pi_t = np.clip(probs[-1] @ mdl_hmm.transmat_, 1e-12, None)
-            pi_t /= pi_t.sum()
+            pi_t = forecast_probs(probs, mdl_hmm.transmat_)
 
             # State-dependent asset moments
             design = np.column_stack([np.ones(len(Xt)), Xt.values])
@@ -238,12 +123,7 @@ if __name__ == "__main__":
 
             means, covs = [], []
             for s in range(n_states):
-                w = weights[s]
-                if w.sum() <= Xt.shape[1] + 2:
-                    # Too few observations attributed to this state to identify
-                    # the loadings; fall back to the most recent window.
-                    w = np.zeros(len(Xt))
-                    w[-args.window :] = 1.0
+                w = guard_weights(weights[s], design.shape[1], args.window)
 
                 coefs, resid_var = fit_wls(design, Yt.values, weights=w)
                 lambda_s, omega_s = factor_moments(Xt.values, w)
