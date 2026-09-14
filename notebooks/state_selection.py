@@ -22,7 +22,7 @@ writes the same figure file and should not be re-run.
 #
 # What survives, and is the substance of the exercise, is the subperiod
 # structure. Within samples of about twenty years, three states is selected by
-# nine of the twelve criterion-subperiod combinations, and none selects more than
+# seven of the nine criterion-subperiod combinations, and none selects more than
 # five. Over the full sixty-one years every criterion selects more.
 #
 # The grid stops at eight. Beyond that every criterion on every sample is
@@ -36,7 +36,7 @@ writes the same figure file and should not be re-run.
 # cannot separate recurring regimes from slow structural change, and the
 # subperiod design is the control for exactly that.
 #
-# This notebook reports four criteria on four samples and lets the disagreement
+# This notebook reports three criteria on four samples and lets the disagreement
 # show. Note that the simulation cannot settle the question: its data-generating
 # process is calibrated at three states, so the state count is three there by
 # construction.
@@ -87,18 +87,13 @@ for label, idx in samples.items():
     print(f"{label:<14} {idx.min():%Y-%m} to {idx.max():%Y-%m}  ({len(idx)} months)")
 
 # %% [markdown]
-# ## 2. Four criteria
+# ## 2. Three criteria
 #
-# All four are of the form $-2\ln\mathcal{L} + \text{penalty}$ and are minimized.
-# They differ in what they charge for a parameter: AIC charges $2$, BIC charges
-# $\ln T$, and HQIC charges $2\ln\ln T$. Only BIC is consistent for the order of
-# a mixture, and AIC is known to over-select.
-#
-# ICL is the one built for this question. It adds twice the entropy of the
-# posterior state assignment to BIC, so a state the model cannot cleanly separate
-# from its neighbours is penalized for the ambiguity it introduces. Where BIC asks
-# whether an extra state improves the fit, ICL asks whether it is a distinct
-# regime or a smear across two existing ones.
+# The three criteria conventional in this literature. All are of the form
+# $-2\ln\mathcal{L} + \text{penalty}$ and are minimized, differing in what they
+# charge for a parameter: AIC charges $2$, BIC charges $\ln T$, and HQIC charges
+# $2\ln\ln T$. Only BIC is consistent for the order of a mixture; AIC and HQIC
+# are not, and both are known to select generously.
 #
 # The number of free parameters is $M(M-1)$ transitions, $M-1$ initial
 # probabilities, and $MK$ means and $MK$ variances for the diagonal emission
@@ -168,25 +163,17 @@ for label, idx in samples.items():
         # mean and a variance per factor per state.
         k = n * (n - 1) + 2 * n * len(factors)
 
-        # Marginal posterior entropy. The exact ICL would use the entropy of the
-        # joint state sequence; the marginal approximation is the standard one and
-        # the ranking is not sensitive to it here.
-        g = mdl.predict_proba(sub)
-        entropy = -np.sum(g * np.log(np.clip(g, 1e-300, None)))
-
-        bic = -2 * ll + k * np.log(T)
         rows[(label, n)] = {
             "AIC": -2 * ll + 2 * k,
-            "BIC": bic,
+            "BIC": -2 * ll + k * np.log(T),
             "HQIC": -2 * ll + 2 * k * np.log(np.log(T)),
-            "ICL": bic + 2 * entropy,
             "logL": ll,
             "best seed": seed,
         }
 
 res = pd.DataFrame(rows).T
 res.index.names = ["sample", "states"]
-criteria = ["BIC", "ICL", "HQIC", "AIC"]
+criteria = ["BIC", "HQIC", "AIC"]
 
 # Cached so the exhibit can be redrawn without repeating three hundred fits.
 res.to_pickle(f"{DataConstants.WDIR.value}/results/state_selection.pkl")
@@ -225,7 +212,7 @@ print(gap.sub(gap.min(axis=1), axis=0).round(1).to_string())
 # ## 4. The figure
 #
 # Each series is plotted as its distance above its own minimum, because the full
-# One panel per sample, with all four criteria inside it, plotted at their own
+# One panel per sample, with all three criteria inside it, plotted at their own
 # level rather than as a distance from the best model. Subtracting the minimum
 # looks appealing -- it puts the selected specification at zero -- but it inflates
 # the scale until the ends of the grid sit several hundred units above the
@@ -239,9 +226,8 @@ print(gap.sub(gap.min(axis=1), axis=0).round(1).to_string())
 # %%
 STYLE = {
     "BIC": dict(ls="-", lw=1.6, marker="s", ms=3.6, mfc="white", mew=1.0),
-    "ICL": dict(ls=(0, (4, 1.6)), lw=1.1, marker="o", ms=3.2, mfc="white", mew=0.9),
-    "HQIC": dict(ls=(0, (1.4, 1.4)), lw=1.1),
-    "AIC": dict(ls=(0, (5, 1.6, 1, 1.6)), lw=1.1),
+    "HQIC": dict(ls=(0, (1.4, 1.4)), lw=1.2),
+    "AIC": dict(ls=(0, (5, 1.6, 1, 1.6)), lw=1.2),
 }
 
 fig, axes = plt.subplots(2, 2, figsize=(7, 4.6), sharex=True)
