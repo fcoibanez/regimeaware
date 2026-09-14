@@ -32,6 +32,7 @@ if __name__ == "__main__":
     collect_sec_rt = {}
     collect_fctr_rt = {}
     collect_probs = {}
+    collect_states = {}
 
     for iter in tqdm(range(SimulationParameters.TRIALS.value)):
         # --------------------------------------------
@@ -91,8 +92,18 @@ if __name__ == "__main__":
         collect_sec_rt[iter] = pd.DataFrame(R)
         collect_fctr_rt[iter] = pd.DataFrame(X, columns=fctr_rt.columns)
         collect_probs[iter] = pd.DataFrame(G)
+        collect_states[iter] = Z.astype(np.int8)
 
     # Cache results
     pd.to_pickle(collect_sec_rt, f"{DataConstants.WDIR.value}/data/sim/sec_rt.pkl")
     pd.to_pickle(collect_fctr_rt, f"{DataConstants.WDIR.value}/data/sim/fctr_rt.pkl")
     pd.to_pickle(collect_probs, f"{DataConstants.WDIR.value}/data/sim/probs.pkl")
+
+    # The realised regime of every period. Without it the regime-conditional
+    # results cannot be computed at all, and it cannot be reconstructed after the
+    # fact: inferring the most likely path from the simulated factors gives an
+    # estimate, which is no use as the ground truth an estimate is scored against.
+    states = pd.DataFrame(collect_states).T
+    states.index.name = "iteration"
+    states.columns.name = "period"
+    states.to_pickle(f"{DataConstants.WDIR.value}/data/sim/states.pkl")
