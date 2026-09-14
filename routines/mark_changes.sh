@@ -29,6 +29,13 @@ git show "${BASELINE}:${MAIN}.tex" > "/tmp/${MAIN}_baseline.tex"
 "$LATEXDIFF" --encoding=utf8 --type=CFONT --math-markup=whole \
     --append-safecmd="revnote" \
     "/tmp/${MAIN}_baseline.tex" "${MAIN}.tex" > "${MAIN}_changes.tex" 2>/dev/null
+# With --math-markup=whole a changed equation is shown twice, struck out and
+# then inserted, and latexdiff leaves the \label on both copies. amsmath then
+# reports a duplicate label and drops one, so references to that equation may
+# point at the struck-out copy. The deleted copy is unnumbered anyway, so its
+# label carries no information and is removed.
+perl -0pi -e 's/\\DIFdelbegin(.*?)\\DIFdelend/"\\DIFdelbegin" . ($1 =~ s#\\label\{[^}]*\}##gr) . "\\DIFdelend"/gse' \
+    "${MAIN}_changes.tex"
 
 # Three passes plus bibtex: the marked-up document has its own aux and
 # bibliography, so citations resolve only after the bibliography is built.
