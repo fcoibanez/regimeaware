@@ -188,6 +188,9 @@ res = pd.DataFrame(rows).T
 res.index.names = ["sample", "states"]
 criteria = ["BIC", "ICL", "HQIC", "AIC"]
 
+# Cached so the exhibit can be redrawn without repeating three hundred fits.
+res.to_pickle(f"{DataConstants.WDIR.value}/results/state_selection.pkl")
+
 # %% [markdown]
 # ## 3. What each criterion selects
 
@@ -222,46 +225,45 @@ print(gap.sub(gap.min(axis=1), axis=0).round(1).to_string())
 # ## 4. The figure
 #
 # Each series is plotted as its distance above its own minimum, because the full
-# sample and the subperiods differ threefold in the level of every criterion and
-# cannot share an axis otherwise. The gap is also the quantity a reader wants:
-# the selected model sits at zero, and how far the alternatives sit above it is
-# the strength of the evidence.
+# One panel per sample, with all four criteria inside it, plotted at their own
+# level rather than as a distance from the best model. Subtracting the minimum
+# looks appealing -- it puts the selected specification at zero -- but it inflates
+# the scale until the ends of the grid sit several hundred units above the
+# interesting region, which then has to be truncated or plotted on an unfamiliar
+# axis. At their own level the variation across $M$ is a few percent, so every
+# series fits its panel and nothing has to be explained away.
 #
-# The vertical scale is linear to two and logarithmic thereafter. On a linear
-# scale the differences that decide the question are invisible against
-# differences of several hundred at the ends of the grid.
+# What the figure has to convey is where each curve bottoms out. Magnitudes are
+# in the table and in the text, which is where a reader looks for them.
 
 # %%
 STYLE = {
-    "Full sample": dict(color="0.05", lw=1.7, ls="-", marker="s", ms=3.4,
-                        mfc="white", mew=1.0, zorder=5),
+    "BIC": dict(ls="-", lw=1.6, marker="s", ms=3.6, mfc="white", mew=1.0),
+    "ICL": dict(ls=(0, (4, 1.6)), lw=1.1, marker="o", ms=3.2, mfc="white", mew=0.9),
+    "HQIC": dict(ls=(0, (1.4, 1.4)), lw=1.1),
+    "AIC": dict(ls=(0, (5, 1.6, 1, 1.6)), lw=1.1),
 }
-DASHES = [(0, (4, 1.6)), (0, (1.4, 1.4)), (0, (5, 1.6, 1, 1.6))]
-for i, label in enumerate(list(samples)[1:]):
-    STYLE[label] = dict(color="0.45", lw=1.0, ls=DASHES[i], zorder=3)
 
-CAP = 200
+fig, axes = plt.subplots(2, 2, figsize=(7, 4.6), sharex=True)
+for ax, sample in zip(axes.ravel(), samples):
+    sub = res.xs(sample, level="sample")
+    for crit in criteria:
+        shade = "0.15" if crit == "BIC" else "0.45"
+        y = sub[crit].astype(float)
+        ax.plot(list(STATES), y.values, color=shade, label=crit, **STYLE[crit])
+        # Where each criterion bottoms out, which is the whole of what the
+        # figure has to convey.
+        ax.plot([y.idxmin()], [y.min()], marker="v", ms=5, color=shade,
+                mec="none", zorder=6)
 
-fig, axes = plt.subplots(2, 2, figsize=(7, 4.4), sharex=True, sharey=True)
-for ax, crit in zip(axes.ravel(), criteria):
-    wide = res[crit].astype(float).unstack("states")
-    delta = wide.sub(wide.min(axis=1), axis=0)
-    for label in samples:
-        ax.plot(list(STATES), delta.loc[label].values, label=label, **STYLE[label])
-        ax.plot([delta.loc[label].idxmin()], [0], marker="o", ms=4.5,
-                mfc=STYLE[label]["color"], mec="none", zorder=6)
-
-    ax.set_title(crit, fontsize=9.5)
-    ax.set_ylim(-6, CAP)
+    ax.set_title(sample, fontsize=9.5)
     ax.set_xticks(list(STATES))
     ax.grid(ls="--", alpha=0.45, lw=0.5)
     ax.tick_params(bottom=False, left=False, labelsize=8)
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:,.0f}")
 
-    # Labelled per panel with the conventional notation rather than sharing one
-    # axis label: each panel plots a different criterion, so no single symbol is
-    # correct for all four.
-    ax.set_ylabel(rf"$\Delta${crit}", fontsize=9)
-
+for ax in axes[:, 0]:
+    ax.set_ylabel("Information criterion", fontsize=9)
 fig.supxlabel("Number of market regimes", fontsize=9)
 
 handles, labels = axes[0, 0].get_legend_handles_labels()
