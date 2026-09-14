@@ -35,17 +35,26 @@ from scipy import stats
 from scipy.stats import entropy
 
 from regimeaware.constants import DataConstants, SimulationParameters
+from regimeaware.core.exhibits import write_tabular
+from regimeaware.core.performance import path_metrics, portfolio_returns
 
-ARMS = ["ck_uni", "ck_multi", "rwls_mvo", "rwls_mixture"]
+ARMS = ["ck_uni_2s", "ck_uni", "ck_multi", "rwls_mvo", "rwls_mixture"]
 
 LABELS = {
-    "ck_uni": r"Costa \& Kwon",
+    "ck_uni_2s": r"Costa \& Kwon (2 states)",
+    "ck_uni": "+ third state",
     "ck_multi": "+ multivariate HMM",
     "rwls_mvo": "+ RWLS",
     "rwls_mixture": "+ mixture utility",
 }
 
+# Each step changes exactly one component. The first begins from Costa and Kwon
+# (2020) as published -- a univariate hidden Markov model with the number of
+# states their Bayesian information criterion selects -- and moves to the three
+# states used here, so that the emission-dimension step which follows varies the
+# emission distribution alone rather than the state count as well.
 STEPS = [
+    ("ck_uni_2s", "ck_uni", "State count"),
     ("ck_uni", "ck_multi", "Emission dimension"),
     ("ck_multi", "rwls_mvo", "RWLS estimator"),
     ("rwls_mvo", "rwls_mixture", "Mixture objective"),
@@ -69,7 +78,15 @@ sec_rt, _ = load_simulation(
     DataConstants.WDIR.value,
 )
 
-wts = {a: pd.read_pickle(f"{DataConstants.WDIR.value}/results/{a}.pkl") for a in ARMS}
+wts = {}
+for a in ARMS:
+    try:
+        wts[a] = pd.read_pickle(f"{DataConstants.WDIR.value}/results/{a}.pkl")
+    except FileNotFoundError:
+        print(f"{a:<16} not available -- skipped")
+
+ARMS = [a for a in ARMS if a in wts]
+STEPS = [s for s in STEPS if s[0] in wts and s[1] in wts]
 
 # Paths actually completed for every arm, so all comparisons are like-for-like
 common = set.intersection(
@@ -86,7 +103,7 @@ def realised_returns(weights, iterations):
         w_phi = weights.xs(phi, level="phi")
         for i in iterations:
             w = w_phi.xs(i, level="iteration")
-            out[(phi, i)] = w.shift(1).mul(sec_rt[i]).dropna(how="all").sum(axis=1)
+            out[(phi, i)] = portfolio_returns(w, sec_rt[i])
     res = pd.DataFrame.from_dict(out, orient="index").sort_index()
     res.index.names = ["phi", "iteration"]
     return res
@@ -101,44 +118,17 @@ rets = {a: realised_returns(wts[a], common) for a in ARMS}
 # distribution rather than a single point estimate.
 
 # %%
-def path_metrics(returns, weights):
-    """Table 2 statistics, one row per (phi, path)."""
-    rows = {}
-    for phi in PHI_LIST:
-        w_phi = weights.xs(phi, level="phi")
-        for i in returns.xs(phi, level="phi").index:
-            r = pd.to_numeric(returns.loc[(phi, i)], errors="coerce").dropna()
-            w = w_phi.xs(i, level="iteration").copy()
-            w[w < 1e-4] = 0
-
-            n = len(r)
-            ann_ret = (1 + r).prod() ** (12 / n) - 1
-            ann_vol = r.std() * np.sqrt(12)
-            wealth = (1 + r).cumprod()
-            var95 = np.percentile(r, 5)
-
-            rows[(phi, i)] = {
-                "Ann. Excess Return": ann_ret,
-                "Ann. Std. Deviation": ann_vol,
-                "Skewness": r.skew(),
-                "Kurtosis": r.kurt(),
-                "Sharpe Ratio": ann_ret / ann_vol,
-                "Max. Drawdown": (wealth / wealth.cummax() - 1).min(),
-                "Value-at-Risk (95%)": var95,
-                "Expected Shortfall": r[r <= var95].mean(),
-                "Portfolio Turnover": w.diff().abs().sum(axis=1).mean() * 12,
-                "Avg. Num. Constituents": (w > 0).sum(axis=1).mean(),
-                "Effective Num. Bets": w.apply(entropy, axis=1).apply(np.exp).mean(),
-                # Certainty equivalent under the exponential utility actually
-                # optimised, rather than its mean-variance approximation
-                "Certainty Equivalent": -(1 / phi) * np.log(np.exp(-phi * r).mean()) * 12,
-            }
-    out = pd.DataFrame.from_dict(rows, orient="index")
-    out.index.names = ["phi", "iteration"]
-    return out
-
-
-metrics = {a: path_metrics(rets[a], wts[a]) for a in ARMS}
+# Metrics come from core.performance so this notebook cannot drift from the
+# others: the Sharpe definition, the drift-corrected turnover and the certainty
+# equivalent are all defined once, in one place.
+metrics = {
+    a: path_metrics(
+        wts[a][wts[a].index.get_level_values("iteration").isin(common)],
+        sec_rt,
+        PHI_LIST,
+    )
+    for a in ARMS
+}
 print(metrics["rwls_mixture"].groupby("phi").mean().round(4).T)
 
 # %% [markdown]
@@ -189,6 +179,47 @@ for phi in PHI_LIST:
     print(f"\n{'='*72}\nSharpe ratio increments, phi = {phi}\n{'='*72}")
     print(increment("Sharpe Ratio", phi).round(4).to_string())
 
+# %%
+# Table 4: the decomposition, panelled by risk aversion. Each row is a paired
+# difference between consecutive arms, so the rows within a panel sum to the
+# total advantage of the framework over Costa and Kwon (2020) as published.
+rows = {}
+for phi in PHI_LIST:
+    inc = increment("Sharpe Ratio", phi)
+    for step in inc.index:
+        rows[(phi, step)] = {
+            "Delta": inc.loc[step, "Delta"],
+            "Std. Err.": inc.loc[step, "Std. Err."],
+            "t-stat": inc.loc[step, "t-stat"],
+            "p (paired t)": inc.loc[step, "p (paired t)"],
+            "Frac. > 0": inc.loc[step, "Frac. > 0"],
+        }
+    rows[(phi, "Total")] = {
+        "Delta": (metrics[ARMS[-1]].xs(phi)["Sharpe Ratio"].mean()
+                  - metrics[ARMS[0]].xs(phi)["Sharpe Ratio"].mean()),
+        "Std. Err.": np.nan,
+        "t-stat": np.nan,
+        "p (paired t)": np.nan,
+        "Frac. > 0": np.nan,
+    }
+
+table4 = pd.DataFrame(rows).T
+table4.index.names = ["phi", "step"]
+
+write_tabular(
+    table4,
+    f"{DataConstants.WDIR.value}/tables/table4_decomposition.tex",
+    panel_level="phi",
+    # Quantities vary across the columns here rather than down the rows, and the
+    # increments are small enough relative to their standard errors that two
+    # decimals would hide the precision.
+    format_axis="columns",
+    formats={"Delta": "num3", "Std. Err.": "num3"},
+    notes=["Each row is a paired difference across the same simulated paths.",
+           "Rows within a panel sum to the total by construction."],
+)
+print("\n" + table4.round(4).to_string())
+
 # %% [markdown]
 # ## 5. Where the gain comes from
 #
@@ -196,7 +227,7 @@ for phi in PHI_LIST:
 # the total improvement over the Costa & Kwon benchmark.
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), sharey=True)
+fig, axes = plt.subplots(1, 3, figsize=(7, 3), sharey=True)
 
 for ax, phi in zip(axes, PHI_LIST):
     inc = increment("Sharpe Ratio", phi)
@@ -213,9 +244,9 @@ for ax, phi in zip(axes, PHI_LIST):
     )
     ax.axhline(0, color="k", lw=0.8)
     ax.set_xticks(range(len(inc)))
-    ax.set_xticklabels(
-        ["Emission\ndimension", "RWLS\nestimator", "Mixture\nobjective"], fontsize=8
-    )
+    # Derived from the steps actually present, so adding a step to the
+    # decomposition cannot leave the axis labelled for the old one.
+    ax.set_xticklabels([n.replace(" ", "\n") for n in inc.index], fontsize=7)
     ax.set_title(rf"$\varphi={phi}$")
     ax.grid(ls="--", alpha=0.5, axis="y", zorder=-25)
     ax.tick_params(bottom=False, left=False)
@@ -233,9 +264,10 @@ plt.show()
 # entire distribution or only its mean.
 
 # %%
-fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), sharex=True, sharey=True)
+fig, axes = plt.subplots(1, 3, figsize=(7, 3), sharex=True, sharey=True)
 
 styles = {
+    "ck_uni_2s": dict(ls=(0, (1, 1)), lw=1.1),
     "ck_uni": dict(ls=":", lw=1.2),
     "ck_multi": dict(ls="-.", lw=1.2),
     "rwls_mvo": dict(ls="--", lw=1.25),
@@ -258,7 +290,7 @@ for ax, phi in zip(axes, PHI_LIST):
     ax.tick_params(bottom=False, left=False)
 
 handles, labels = axes[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.13), ncol=4, frameon=True)
+fig.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.13), ncol=3, frameon=True, fontsize=7)
 plt.tight_layout()
 plt.savefig(f"{DataConstants.WDIR.value}/img/ablation_ecdf.pdf", dpi=300,
             transparent=True, bbox_inches="tight")
@@ -274,8 +306,9 @@ plt.show()
 # %%
 all_phis = list(SimulationParameters.RISK_AVERSION.value)
 
-fig, ax = plt.subplots(figsize=(4.5, 3.4))
-markers = {"ck_uni": "^", "ck_multi": "v", "rwls_mvo": "o", "rwls_mixture": "s"}
+fig, ax = plt.subplots(figsize=(3.75, 3.75))
+markers = {"ck_uni_2s": "D", "ck_uni": "^", "ck_multi": "v",
+           "rwls_mvo": "o", "rwls_mixture": "s"}
 
 for a in ARMS:
     sr = metrics[a]["Sharpe Ratio"].groupby("phi").mean()
@@ -372,37 +405,50 @@ frontier = pd.DataFrame(
 print("\n" + frontier.round(4).to_string())
 
 # %% [markdown]
-# ## 10. Comparison against the cached results
+# ## 10. Value of knowing the regimes, and what changed since submission
 #
-# The cached `model.pkl` was produced by the original pipeline. It differs from
-# `rwls_mixture` in three ways at once, so the gap below is **not** interpretable
-# as the value of any one of them:
+# With the covariance error corrected, `model_oracle` and `model_estimated` are
+# the same estimator differing *only* in their information set: the former is
+# handed the true parameters of the data-generating process, the latter fits the
+# regime model at each decision date on the observations available up to it.
 #
-# 1. it supplies the optimiser with the true HMM parameters rather than
-#    estimating them on the information set available at each decision date;
-# 2. it uses full-sample smoothed regime probabilities, which embed data from
-#    after the decision date;
-# 3. it scales every covariance matrix by 1.5 through an operator-precedence
-#    error, which shifts the effective risk aversion away from the stated
-#    $\varphi$.
+# The gap between them is therefore interpretable, and it is the decomposition
+# Reviewer 3 asks for: how much of the outperformance comes from *identifying*
+# regimes as against *projecting* them into asset space. A small gap says the
+# framework is robust to having to estimate its own regimes; a large one says the
+# reported performance leans on regime identification that a real investor would
+# not achieve.
 #
-# The comparison becomes interpretable only once (3) is corrected and the two
-# pipelines differ solely in their information set. Until then, treat the number
-# below as a diagnostic that the arms are not yet reconciled, not as a result.
+# `results/model.pkl` is retained as the archived output of the original
+# pipeline. It is not a comparison arm -- it carries the look-ahead in the regime
+# probabilities and the inflated covariances -- but the difference against it is
+# what has to be accounted for in the response to referees, since the revised
+# table will not reproduce the submitted numbers.
 
 # %%
-try:
-    cached = pd.read_pickle(f"{DataConstants.WDIR.value}/results/model.pkl")
-    cached_rets = realised_returns(cached, common)
-    cached_metrics = path_metrics(cached_rets, cached)
+def load_arm(name):
+    """Metrics for an arm held outside the incremental path, if it has been run."""
+    wts_arm = pd.read_pickle(f"{DataConstants.WDIR.value}/results/{name}.pkl")
+    paths = sorted(set(wts_arm.index.get_level_values("iteration").unique()) & set(common))
+    kept = wts_arm[wts_arm.index.get_level_values("iteration").isin(paths)]
+    return path_metrics(kept, sec_rt, PHI_LIST), paths
 
-    comp = pd.DataFrame(
-        {
-            "cached (oracle regimes)": cached_metrics["Sharpe Ratio"].groupby("phi").mean(),
-            "rwls_mixture (estimated)": metrics["rwls_mixture"]["Sharpe Ratio"].groupby("phi").mean(),
-        }
-    )
-    comp["difference"] = comp.iloc[:, 0] - comp.iloc[:, 1]
-    print(comp.round(4).to_string())
-except FileNotFoundError:
-    print("cached model.pkl not found; skipping")
+
+panel = {}
+for name in ["model_oracle", "model_estimated", "model"]:
+    try:
+        m, paths = load_arm(name)
+        panel[name] = m["Sharpe Ratio"].groupby("phi").mean()
+        print(f"{name:<18} loaded on {len(paths)} paths")
+    except FileNotFoundError:
+        print(f"{name:<18} not available")
+
+panel = pd.DataFrame(panel)
+
+if {"model_oracle", "model_estimated"} <= set(panel.columns):
+    panel["value of known regimes"] = panel["model_oracle"] - panel["model_estimated"]
+if "model" in panel.columns and "model_estimated" in panel.columns:
+    panel["vs. submitted draft"] = panel["model_estimated"] - panel["model"]
+
+print()
+print(panel.round(4).to_string())
