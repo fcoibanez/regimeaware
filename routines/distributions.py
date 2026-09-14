@@ -6,6 +6,8 @@ if __name__ == "__main__":
         DataConstants,
         HMMParameters,
         Factors,
+        HISTORY_END_DT,
+        HISTORY_START_DT,
         MIN_OBS,
         MICROCAP_THRESHOLD,
     )
@@ -18,8 +20,16 @@ if __name__ == "__main__":
     os.environ["OMP_NUM_THREADS"] = "3"
 
     # HMM training on real factor data
+    # Pinned to the period the paper reports. The cached factor file is refreshed
+    # from source and already extends beyond it, so without this the calibration
+    # would silently be fitted on a longer sample than the one described in the
+    # text, and every simulated result would follow from parameters the paper
+    # does not document.
     fctr_rt = pd.read_pickle(f"{DataConstants.WDIR.value}/data/ff.pkl")
+    fctr_rt = fctr_rt.loc[HISTORY_START_DT:HISTORY_END_DT]
     fctr_rt = fctr_rt[[factor.name for factor in Factors]]
+    print(f"factor sample: {fctr_rt.index.min():%Y-%m} to "
+          f"{fctr_rt.index.max():%Y-%m} ({len(fctr_rt)} months)")
 
     mdl_hmm = GaussianHMM(
         n_components=HMMParameters.STATES.value,

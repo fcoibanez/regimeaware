@@ -204,8 +204,11 @@ def block_size_calibrate(returns: npt.NDArray[np.float64], b_vec: List = [1, 3, 
     T = returns.shape[0]
     var_data = np.zeros((T + T_start, 2))
     var_data[0, :] = returns[0, :]
-    fit1 = sm.OLS(ret_agg[1:, 0], sm.add_constant(ret_agg[:(T - 1), :])).fit()
-    fit2 = sm.OLS(ret_agg[1:, 1], sm.add_constant(ret_agg[:(T - 1), :])).fit()
+    # Upstream refers to ret_agg here, which is never bound -- a leftover name
+    # from the port that makes this function raise on any input. The VAR(1) is
+    # meant to be fitted to the return pair passed in.
+    fit1 = sm.OLS(returns[1:, 0], sm.add_constant(returns[:(T - 1), :])).fit()
+    fit2 = sm.OLS(returns[1:, 1], sm.add_constant(returns[:(T - 1), :])).fit()
     coef1 = fit1.params
     coef2 = fit2.params
     resid_mat = np.vstack([fit1.resid, fit2.resid]).T
@@ -249,7 +252,7 @@ def sharpe_diff(returns):
 
 
 def bootstrap_inference(returns: npt.NDArray[np.float64], block_size: int, alpha: float = 0.05, M: int = 100,
-                        delta_null: float = 0.0, return_resid=False):
+                        delta_null: float = 0.0, return_resid=False, seed=None):
     """
     Computes relative Sharpe ratio statistics using bootsrap methodology from Ledoit & Wolf
     Args:
@@ -258,6 +261,8 @@ def bootstrap_inference(returns: npt.NDArray[np.float64], block_size: int, alpha
         alpha (float): Significance level
         M (int): Number of bootstrap draws
         delta_null (float): Risk free rate
+        seed (int | None): Seed for the resampling. Left unset the draws are
+            not reproducible, which is not acceptable for a reported number.
     Returns:
         (np.ndarray, float, tuple, float, float) : Sharpe ratios, sharpe ratio difference, confidence intervals
                 p-value, standard error
@@ -272,7 +277,7 @@ def bootstrap_inference(returns: npt.NDArray[np.float64], block_size: int, alpha
     d = np.abs(SR_diff - delta_null) / hac_se
     p_value = 1.0
     se = 0.0
-    bs = bootstrap.CircularBlockBootstrap(block_size, returns)
+    bs = bootstrap.CircularBlockBootstrap(block_size, returns, seed=seed)
     d_star_arr = np.zeros(M)
     d_star_arr_non_abs = np.zeros(M)
     for m, ret_star_boot in enumerate(bs.bootstrap(M)):
