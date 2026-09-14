@@ -25,6 +25,10 @@ writes the same figure file and should not be re-run.
 # nine of the twelve criterion-subperiod combinations, and none selects more than
 # five. Over the full sixty-one years every criterion selects more.
 #
+# The grid stops at eight. Beyond that every criterion on every sample is
+# several hundred units worse than its own best, and EM convergence becomes
+# unreliable, so the additional candidates carry no information.
+#
 # That contrast is expected rather than contradictory. The penalty an information
 # criterion charges grows with $\ln T$ while the attainable gain in log-likelihood
 # grows roughly in proportion to $T$, so the number of states a criterion will
@@ -56,7 +60,7 @@ plt.rcParams.update(
     {"text.usetex": True, "font.family": "serif", "font.sans-serif": ["CMU Serif"]}
 )
 
-STATES = range(1, 11)
+STATES = range(1, 9)
 N_SUBPERIODS = 3
 N_STARTS = 10
 
@@ -236,6 +240,8 @@ DASHES = [(0, (4, 1.6)), (0, (1.4, 1.4)), (0, (5, 1.6, 1, 1.6))]
 for i, label in enumerate(list(samples)[1:]):
     STYLE[label] = dict(color="0.45", lw=1.0, ls=DASHES[i], zorder=3)
 
+CAP = 200
+
 fig, axes = plt.subplots(2, 2, figsize=(7, 4.4), sharex=True, sharey=True)
 for ax, crit in zip(axes.ravel(), criteria):
     wide = res[crit].astype(float).unstack("states")
@@ -245,20 +251,17 @@ for ax, crit in zip(axes.ravel(), criteria):
         ax.plot([delta.loc[label].idxmin()], [0], marker="o", ms=4.5,
                 mfc=STYLE[label]["color"], mec="none", zorder=6)
 
-    # Two units of a criterion is the conventional threshold below which a
-    # difference is not worth interpreting.
-    ax.axhline(2, color="0.6", lw=0.6, ls=(0, (1, 2)))
     ax.set_title(crit, fontsize=9.5)
-    ax.set_yscale("symlog", linthresh=2, linscale=0.6)
-    ax.set_ylim(0, 1200)
-    ax.set_yticks([0, 2, 10, 50, 200, 1000])
-    ax.set_yticklabels(["0", "2", "10", "50", "200", "1{,}000"])
+    ax.set_ylim(-6, CAP)
     ax.set_xticks(list(STATES))
     ax.grid(ls="--", alpha=0.45, lw=0.5)
     ax.tick_params(bottom=False, left=False, labelsize=8)
 
-for ax in axes[:, 0]:
-    ax.set_ylabel("Gap to best", fontsize=9)
+    # Labelled per panel with the conventional notation rather than sharing one
+    # axis label: each panel plots a different criterion, so no single symbol is
+    # correct for all four.
+    ax.set_ylabel(rf"$\Delta${crit}", fontsize=9)
+
 fig.supxlabel("Number of market regimes", fontsize=9)
 
 handles, labels = axes[0, 0].get_legend_handles_labels()
