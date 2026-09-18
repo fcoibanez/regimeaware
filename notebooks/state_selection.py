@@ -95,9 +95,9 @@ for label, idx in samples.items():
 # $2\ln\ln T$. Only BIC is consistent for the order of a mixture; AIC and HQIC
 # are not, and both are known to select generously.
 #
-# The number of free parameters is $M(M-1)$ transitions, $M-1$ initial
-# probabilities, and $MK$ means and $MK$ variances for the diagonal emission
-# covariance used throughout.
+# The number of free parameters is $M(M-1)$ transitions and $MK$ means and $MK$
+# variances for the diagonal emission covariance used throughout. The initial
+# probabilities are not counted: they are held fixed, as in the paper's model.
 
 # %%
 def fit_best(sub, n):
@@ -211,7 +211,6 @@ print(gap.sub(gap.min(axis=1), axis=0).round(1).to_string())
 # %% [markdown]
 # ## 4. The figure
 #
-# Each series is plotted as its distance above its own minimum, because the full
 # One panel per sample, with all three criteria inside it, plotted at their own
 # level rather than as a distance from the best model. Subtracting the minimum
 # looks appealing -- it puts the selected specification at zero -- but it inflates
@@ -259,3 +258,53 @@ plt.tight_layout()
 plt.savefig(f"{DataConstants.WDIR.value}/img/state_calibration.pdf", dpi=300,
             transparent=True, bbox_inches="tight")
 plt.show()
+
+# %% [markdown]
+# ## 5. The market factor alone
+#
+# Costa and Kwon (2020) select two states by BIC on the market factor alone. Two
+# things separate their specification from the one used here -- a different
+# sample, and five more factors -- and either could account for the third state.
+# Fitting their specification to this sample, under the same protocol, tells the
+# two apart: if the market factor alone still selects two, the third state is
+# identified by the additional factors and not by the sample.
+
+# %%
+rows_mkt = {}
+for label, idx in samples.items():
+    sub = X.reindex(idx)[["mktrf"]]
+    T = len(sub)
+    for n in STATES:
+        found = fit_best(sub, n)
+        if found is None:
+            print(f"  no usable fit: {label}, M={n}")
+            continue
+        ll, mdl, seed = found
+
+        # One factor: M(M-1) transitions, and a mean and a variance per state.
+        k = n * (n - 1) + 2 * n
+
+        rows_mkt[(label, n)] = {
+            "AIC": -2 * ll + 2 * k,
+            "BIC": -2 * ll + k * np.log(T),
+            "HQIC": -2 * ll + 2 * k * np.log(np.log(T)),
+            "logL": ll,
+            "best seed": seed,
+        }
+
+res_mkt = pd.DataFrame(rows_mkt).T
+res_mkt.index.names = ["sample", "states"]
+res_mkt.to_pickle(f"{DataConstants.WDIR.value}/results/state_selection_market.pkl")
+
+selection_mkt = pd.DataFrame({
+    label: {c: int(res_mkt.xs(label, level="sample")[c].astype(float).idxmin())
+            for c in criteria}
+    for label in samples
+}).T
+bic_mkt = res_mkt["BIC"].astype(float).unstack("sample")
+
+# Positive favours two states over three, the reverse of the sign in section 3,
+# because here the question is whether three is rejected.
+selection_mkt["BIC(3) - BIC(2)"] = bic_mkt.loc[3] - bic_mkt.loc[2]
+print("Market factor only")
+print(selection_mkt.round(1).to_string())
