@@ -127,7 +127,7 @@ for arm in wts:
                 "Mean return": mean,
                 "Volatility": vol,
                 "Sharpe (arith.)": mean / vol if vol else np.nan,
-                "5th pct month": vals.quantile(0.05),
+                "VaR (95%)": vals.quantile(0.05),
                 "Worst month": vals.min(),
             }
 
@@ -169,7 +169,7 @@ for phi in PHI_LIST:
             "Return advantage (ann.)": adv.mean() * 12,
             "Contribution to total (ann.)": adv.mean() * share * 12,
             "Volatility ratio": p_vals.std() / b_vals.std(),
-            "5th pct improvement": p_vals.quantile(0.05) - b_vals.quantile(0.05),
+            "VaR (95%) improvement": p_vals.quantile(0.05) - b_vals.quantile(0.05),
         }
 
 decomposition = pd.DataFrame(decomp).T
@@ -303,7 +303,7 @@ if forecast is not None:
     panel_a = {}
     for phi in PHI_LIST:
         for metric in ["Share of months", "Return advantage (ann.)",
-                       "Volatility ratio", "5th pct improvement"]:
+                       "Volatility ratio", "VaR (95%) improvement"]:
             panel_a[(phi, metric)] = {
                 name: decomposition.loc[(phi, name), metric]
                 for name in STATES.values()
