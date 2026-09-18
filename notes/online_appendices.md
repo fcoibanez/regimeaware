@@ -16,8 +16,49 @@ re-run), **write-up** (no computation).
 | A2 | Power and size of the Ledoit–Wolf test: detection by horizon; size by block length (6.4/2.4/1.6/0.8 % vs nominal 5 %); the HAC variant that under-rejects | §4.5, block length of one | `img/detection_horizon.pdf`, `tables/detection_horizon.tex`, comment in `core/inference.py` | write-up, plus a small size run |
 | A3 | Rolling-window sensitivity, 24/36/60 months | R3.3 | `img/rolling_window_sensitivity.pdf`; the 24m/60m arms are **not** in `results/` and must be re-run to refresh | arm ×2 |
 | A4 | Incremental path as distributions across paths, not means | Table 5 | `img/ablation_increments.pdf`, `ablation_phi.pdf`, `ablation_ecdf.pdf` | write-up |
-| A5 | Transaction-cost estimate: 0.1242 % from 2.07 M CRSP stock-months, the cap-weighted counterpart, the range in the literature | Figure 5 band, R2.4 | `notebooks/tcost_estimation` | write-up |
-| A6 | Regime timing against NBER: lead/lag ratios (strongest at +2 months), the 63 episodes | §4.2 | `notebooks/regime_characterization` | write-up |
+| A5 | Transaction-cost estimate: 0.1242 % from 2.07 M CRSP stock-months, the cap-weighted counterpart, the range in the literature — **plus the cost-sensitivity figure, moved here from the main text** (see below) | R2.4; §4.5 now points here | `notebooks/tcost_estimation`; `img/cost_sensitivity.pdf` from `notebooks/statistical_validation` | write-up |
+| A6 | Regime timing against NBER: lead/lag ratios (strongest at +2 months), the 63 episodes — **plus the momentum-crash table, moved here from the main text** (see below) | §4.2 now points here | `notebooks/regime_characterization`; `tables/momentum_crashes.tex` | write-up |
+
+### A5: the cost-sensitivity figure (moved 17 September 2026)
+
+Formerly Figure 5. Moved because §4.5 states everything it shows numerically and
+most of its axis covers costs 10–25× any estimate; it belongs beside the spread
+estimate, whose output is its shaded band. §4.5 now says "The Online Appendix
+plots the net Sharpe ratio of every arm against the assumed cost…" — **that
+sentence must resolve to this appendix once it exists.**
+
+The caption it had:
+
+> Net annualized Sharpe ratio of each arm, averaged across the simulated paths,
+> as a function of the one-way cost charged per unit of two-sided turnover. The
+> vertical line marks the realized cost estimated from CRSP quoted spreads,
+> 0.1242%, and the shaded band spans that estimate and its
+> capitalization-weighted counterpart. Where two lines cross is the breakeven
+> cost for that pair.
+
+**Add to the caption when it moves:** the lines are averages across paths, so
+where they cross is not the median per-path breakeven that §4.5 quotes. RWLS and
+the regime-agnostic benchmark cross near 2.1% at φ = 10, while the text reports a
+median breakeven of 2.84%. Both are right, but without a sentence saying so a
+careful reader will see a contradiction. The last caption sentence ("Where two
+lines cross is the breakeven cost for that pair") is the one that invites it and
+should be qualified to "…for the average path".
+
+### A6: the momentum-crash table (moved 17 September 2026)
+
+Formerly Table 2. Moved because it printed directly beneath Table 1, and the text
+already stated everything the argument takes from it; the dates, the only thing
+it held that the text did not, are now listed in §4.2, which says the months "are
+tabulated with their regime probabilities in the Online Appendix". **That pointer
+must resolve to this appendix once it exists.**
+
+The caption it had:
+
+> The eight months in the first percentile of the momentum factor over the
+> estimation sample, with the factor returns realized in each and the posterior
+> regime probabilities the model assigns to it. The episodes are selected from
+> the data rather than transcribed from a published list. The final row reports
+> unconditional means for comparison.
 
 ## B. Robustness to misspecification
 

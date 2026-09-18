@@ -202,46 +202,58 @@ except FileNotFoundError:
 
 # %%
 def net_panel(cost):
-    """Gross and net Sharpe, with the Ledoit–Wolf test on the net series."""
-    rows = {}
+    """Gross and net Sharpe of every arm, and tests of the proposed framework
+    against each benchmark.
+
+    Every test compares the proposed framework with the benchmark in its column.
+    Testing each benchmark against the regime-agnostic one instead, as an earlier
+    version did, answers a question nobody asked -- whether 1/N beats the
+    regime-agnostic estimator -- and leaves the one that matters unanswered for
+    four of the five benchmarks.
+
+    The paired test and the Ledoit and Wolf test are both on net returns, so the
+    two rows describe the same comparison the table is titled for.
+    """
+    net_rt, gross_sr, net_sr = {}, {}, {}
     for phi in PHI_LIST:
-        b_phi = wts[BENCHMARK].xs(phi, level="phi")
         for arm in available_main:
             w_phi = wts[arm].xs(phi, level="phi")
-
-            gross, net, pairs = [], [], []
+            g, n, r = {}, {}, {}
             for i in common:
                 w_i = w_phi.xs(i, level="iteration")
-                gross.append(net_sharpe_curve(w_i, sec_rt[i], 0.0)[0])
-                net.append(net_sharpe_curve(w_i, sec_rt[i], cost)[0])
-                if arm != BENCHMARK:
-                    pairs.append((
-                        net_returns(w_i, sec_rt[i], cost),
-                        net_returns(b_phi.xs(i, level="iteration"), sec_rt[i], cost),
-                    ))
+                g[i] = net_sharpe_curve(w_i, sec_rt[i], 0.0)[0]
+                n[i] = net_sharpe_curve(w_i, sec_rt[i], cost)[0]
+                r[i] = net_returns(w_i, sec_rt[i], cost)
+            gross_sr[(phi, arm)] = pd.Series(g)
+            net_sr[(phi, arm)] = pd.Series(n)
+            net_rt[(phi, arm)] = r
 
-            # Seeded per path so the rejection rates reproduce, and run in
-            # parallel: five arms, three levels of risk aversion and a thousand
-            # paths is fifteen thousand bootstraps.
-            lw_p = [
-                r["p-value"]
-                for r in ledoit_wolf_batch(pairs, seeds=[path_seed(i) for i in common])
-            ] if pairs else []
-
-            paired = paired_comparison(
-                metrics[arm].xs(phi)["Sharpe Ratio"],
-                metrics[BENCHMARK].xs(phi)["Sharpe Ratio"],
-            )
-
-            rows[(phi, SHORT[arm])] = {
-                "Sharpe (gross)": np.nanmean(gross),
-                "Sharpe (net)": np.nanmean(net),
-                "Cost drag": np.nanmean(gross) - np.nanmean(net),
-                "Delta": paired["Delta"],
-                "t-stat": paired["t-stat"],
-                "p (paired t)": paired["p (paired t)"],
-                "LW reject 5\\%": np.mean(np.array(lw_p) < 0.05) if lw_p else np.nan,
+    rows = {}
+    for phi in PHI_LIST:
+        for arm in available_main:
+            gross, net = gross_sr[(phi, arm)], net_sr[(phi, arm)]
+            row = {
+                "Sharpe (gross)": gross.mean(),
+                "Sharpe (net)": net.mean(),
+                "Cost drag": gross.mean() - net.mean(),
             }
+            if arm != PROPOSED:
+                paired = paired_comparison(net_sr[(phi, PROPOSED)], net)
+
+                # Seeded per path so the rejection rates reproduce, and run in
+                # parallel: five benchmarks, three levels of risk aversion and a
+                # thousand paths is fifteen thousand bootstraps.
+                lw = ledoit_wolf_batch(
+                    [(net_rt[(phi, PROPOSED)][i], net_rt[(phi, arm)][i]) for i in common],
+                    seeds=[path_seed(i) for i in common],
+                )
+                row.update({
+                    "Delta": paired["Delta"],
+                    "t-stat": paired["t-stat"],
+                    "p (paired t)": paired["p (paired t)"],
+                    "LW reject 5\\%": np.mean([r["p-value"] < 0.05 for r in lw]),
+                })
+            rows[(phi, SHORT[arm])] = row
 
     out = pd.DataFrame(rows).T
     out.index.names = ["phi", "model"]
@@ -272,8 +284,8 @@ if realised_one_way is not None:
         panel_level="phi",
         notes=[
             f"Costs charged at {realised_one_way*100:.4f}% per unit of two-sided turnover.",
-            "Ledoit-Wolf tests are computed on net returns against the "
-            f"{LABELS[BENCHMARK]} benchmark.",
+            f"Tests compare {LABELS[PROPOSED]} with the benchmark in each column, "
+            "on net returns.",
         ],
     )
     print(table3.round(4).to_string())
