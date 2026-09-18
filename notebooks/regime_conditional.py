@@ -182,8 +182,11 @@ print(decomposition.round(4).to_string())
 # The forecast $\hat\gamma_{t+1}$ is what the optimisation actually consumes, so
 # its accuracy bounds what the framework can deliver. It is compared against the
 # realised state, and against a naive forecast that ignores the current state and
-# always predicts the ergodic distribution -- which is the relevant benchmark,
-# since beating it is the whole point of conditioning on a regime.
+# always predicts each state's frequency over the scored periods -- which is the
+# relevant benchmark, since beating it is the whole point of conditioning on a
+# regime. The frequencies are close to the ergodic distribution of the chain, but
+# they are computed after the fact from the very periods being scored, so no
+# forecaster could have known them: if anything the benchmark is harder to beat.
 
 # %%
 try:
@@ -220,7 +223,7 @@ if forecast is not None:
     print(f"hit rate (modal forecast)   : {hit:.3f}")
     print(f"hit rate, always-modal state: {ergodic.max():.3f}")
     print(f"Brier score, forecast       : {brier:.4f}")
-    print(f"Brier score, ergodic naive  : {brier_naive:.4f}")
+    print(f"Brier score, constant naive : {brier_naive:.4f}")
     print(f"Brier skill score           : {1 - brier / brier_naive:.4f}")
 
 # %%
@@ -373,6 +376,8 @@ if forecast is not None:
         top_rule=False,
         notes=["Scored against the realised regime over all simulated paths.",
                "The constant forecast always predicts the most frequent state; "
-               "it is reported as the hit rate that forecast attains."],
+               "it is reported as the hit rate that forecast attains.",
+               "The Brier skill score is measured against a constant forecast "
+               "of each state's frequency over the scored periods."],
     )
     print(panel_b.round(4).to_string())
