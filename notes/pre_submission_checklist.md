@@ -45,6 +45,31 @@ Regenerate them or drop them before the repository is released.
 and read as overlapping. The label is the cache key in
 `notebooks/state_selection.py`, so changing it means refitting the grid.
 
+## Open from the author's read-through (started 18 September 2026)
+
+**The definition of $s$** -- deferred by the author, to be addressed later. The
+author has begun replacing the bold process notation $\boldsymbol{s}$ with the
+explicit state set $\{s_1, \dots, s_M\}$ (commit `7c6b821`). Three live uses of
+$\boldsymbol{s}$ remain in Section 3.1: "an unobservable stochastic process
+$\boldsymbol{s}$", "the hidden process $\boldsymbol{s}$ evolves", and "every
+state in $\boldsymbol{s}$". The first two denote the process, where a distinct
+symbol from a single state $s$ is standard; the third uses it as a set, the usage
+already replaced elsewhere. Whatever is decided, the process, the set of states
+and a single state should each have one symbol used consistently.
+
+Awaiting the author's decision, raised during the read-through:
+
+- **Table 3 caption, LW row.** Add that virtually all rejections favour RWLS
+  (adverse rejections at most 0.7% in the gross breakdown) and that under the
+  null the test rejects at close to its nominal 5%.
+- **"Premultiplying" in Section 4.4.** The forecast is $\gamma_t \Pi$ with
+  $\gamma_t$ a row vector, so it is postmultiplication; $\Pi\gamma_t$ does not
+  conform. Relatedly, $\gamma^{(0)} \in \mathbb{R}^{M \times 1}$ in Section 3.1
+  is a column vector, against the row convention for $\gamma_t$. Ties in with the
+  definition of $s$ above.
+- **`highlights.txt`.** The rewritten Sharpe highlight ("…against 2.11 for the
+  strongest of five benchmarks") is uncommitted in the HMM repository.
+
 ## Not doing
 
 **No final refresh** (decided 17 September 2026). The sample stays at July 1963
