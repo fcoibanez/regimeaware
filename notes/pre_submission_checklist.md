@@ -32,13 +32,6 @@ and significance tables share the same abbreviated column headings.
 
 ## Remaining
 
-**Final refresh.** Factor data through December 2025 (`HISTORY_END_DT`) and
-$5{,}000$ paths. This re-runs the whole pipeline -- simulation, every arm, the
-forecasts, every notebook, the sync -- and changes every exhibit and every number
-quoted in prose, so it is a decision rather than a chore: it costs days of compute
-and invalidates the reading pass. If it is done, re-check every quoted figure in
-Sections 4.2, 4.4--4.6, the introduction and the conclusions afterwards.
-
 **Recent citations** from EJOR and the OR journals this paper joins.
 
 **Optional appendix** on `rolling_window_sensitivity.pdf`, justifying the
@@ -51,6 +44,14 @@ Regenerate them or drop them before the repository is released.
 **Figure 1 sub-period labels** are at year resolution (`1984--2004`, `2004--2024`)
 and read as overlapping. The label is the cache key in
 `notebooks/state_selection.py`, so changing it means refitting the grid.
+
+## Not doing
+
+**No final refresh** (decided 17 September 2026). The sample stays at July 1963
+to December 2024 and the simulation at $1{,}000$ paths, as the manuscript states.
+Extending the data to December 2025 and the paths to $5{,}000$ would have re-run
+the whole pipeline and changed every number in the paper for a sample roughly
+1.6% longer.
 
 ## Verification, after any regeneration
 
