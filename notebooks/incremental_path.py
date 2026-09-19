@@ -183,24 +183,35 @@ for phi in PHI_LIST:
 # Table 4: the decomposition, panelled by risk aversion. Each row is a paired
 # difference between consecutive arms, so the rows within a panel sum to the
 # total advantage of the framework over Costa and Kwon (2020) as published.
+# The change in annual turnover is reported alongside the change in Sharpe ratio,
+# because the paper attributes Costa and Kwon's heavier trading to hard
+# classification on a short window: this column is the evidence for that, step by
+# step. It sits last so that the standard error, t-statistic and p-value remain
+# beside the Sharpe increment they describe.
+D_SR, D_TO = r"$\Delta$ Sharpe", r"$\Delta$ Turnover"
+
 rows = {}
 for phi in PHI_LIST:
     inc = increment("Sharpe Ratio", phi)
+    inc_to = increment("Portfolio Turnover", phi)
     for step in inc.index:
         rows[(phi, step)] = {
-            "Delta": inc.loc[step, "Delta"],
+            D_SR: inc.loc[step, "Delta"],
             "Std. Err.": inc.loc[step, "Std. Err."],
             "t-stat": inc.loc[step, "t-stat"],
             "p (paired t)": inc.loc[step, "p (paired t)"],
             "Frac. > 0": inc.loc[step, "Frac. > 0"],
+            D_TO: inc_to.loc[step, "Delta"],
         }
     rows[(phi, "Total")] = {
-        "Delta": (metrics[ARMS[-1]].xs(phi)["Sharpe Ratio"].mean()
-                  - metrics[ARMS[0]].xs(phi)["Sharpe Ratio"].mean()),
+        D_SR: (metrics[ARMS[-1]].xs(phi)["Sharpe Ratio"].mean()
+               - metrics[ARMS[0]].xs(phi)["Sharpe Ratio"].mean()),
         "Std. Err.": np.nan,
         "t-stat": np.nan,
         "p (paired t)": np.nan,
         "Frac. > 0": np.nan,
+        D_TO: (metrics[ARMS[-1]].xs(phi)["Portfolio Turnover"].mean()
+               - metrics[ARMS[0]].xs(phi)["Portfolio Turnover"].mean()),
     }
 
 table4 = pd.DataFrame(rows).T
@@ -214,7 +225,7 @@ write_tabular(
     # increments are small enough relative to their standard errors that two
     # decimals would hide the precision.
     format_axis="columns",
-    formats={"Delta": "num3", "Std. Err.": "num3"},
+    formats={D_SR: "num3", "Std. Err.": "num3", D_TO: "num2"},
     notes=["Each row is a paired difference across the same simulated paths.",
            "Rows within a panel sum to the total by construction."],
 )
